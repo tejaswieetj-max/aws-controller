@@ -1,0 +1,37 @@
+{
+  "example_type": "synthetic local test fixture; not an AWS CUR export or actual bill",
+  "source_test": "tests/unit/test_billing.py::test_reconcile_attribution_revision_and_duplicate_are_atomic",
+  "test_command": ".venv/bin/python -m pytest -q tests/unit/test_billing.py::test_reconcile_attribution_revision_and_duplicate_are_atomic",
+  "local_test_suite_result": "PASS (included in 126-test evidence-pack run)",
+  "currency_unit": "integer micro-USD",
+  "initial_budget_micro_usd": 20000000,
+  "initial_reserve_micro_usd": 5000000,
+  "provisional_actual_micro_usd": 2000000,
+  "revisions": [
+    {
+      "revision": "rev-1",
+      "synthetic_cur_usage_cost_usd": "1.25",
+      "new_actual_micro_usd": 1250000,
+      "adjustment_micro_usd": -750000,
+      "replay_is_idempotent": true
+    },
+    {
+      "revision": "rev-2",
+      "synthetic_cur_usage_cost_usd": "3.00",
+      "new_actual_micro_usd": 3000000,
+      "adjustment_micro_usd": 1750000,
+      "replay_of_rev_1_after_rev_2_leaves_final_unchanged": true
+    }
+  ],
+  "final_ledger_micro_usd": {
+    "budget": 20000000,
+    "available": 17000000,
+    "reserved": 0,
+    "spent": 3000000,
+    "invariant_holds": true
+  },
+  "limitations": [
+    "Values are derived from a deterministic Moto test fixture.",
+    "This is not evidence of a configured CUR export, live tag attribution, Athena execution, or AWS billing reconciliation."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "template_only": true,
+  "run_timestamp_utc": null,
+  "aws_verified": false,
+  "account_alias_or_redacted_id": null,
+  "region": null,
+  "reservation_id_redacted": null,
+  "instance_id_redacted": null,
+  "expected_volume_ids_redacted": [],
+  "ec2_instance_state": null,
+  "all_expected_volumes_absent_or_deleted": null,
+  "ledger_cleanup_state": null,
+  "ledger_final_status": null,
+  "budget_invariant_verified": null,
+  "evidence_links": [],
+  "notes": "Blank template only. Populate only from an approved live run and read-only verification evidence."
+}

@@ -1,0 +1,68 @@
+{
+  "assertions": {
+    "failed": [],
+    "passed": [
+      {
+        "name": "first request admitted",
+        "passed": true
+      },
+      {
+        "name": "replay returns same reservation",
+        "passed": true
+      },
+      {
+        "name": "replay marked idempotent",
+        "passed": true
+      },
+      {
+        "name": "one durable reservation row",
+        "passed": true
+      },
+      {
+        "name": "budget held once",
+        "passed": true
+      },
+      {
+        "name": "budget invariant holds",
+        "passed": true
+      },
+      {
+        "name": "admission layer did not start provisioning",
+        "passed": true
+      }
+    ]
+  },
+  "command": "PYTHONPATH=services .venv/bin/python scripts/evidence_idempotency_demo.py",
+  "evidence_type": "local deterministic demonstration using Moto DynamoDB mocks",
+  "generated_at_utc": "2026-10-22T08:11:14Z",
+  "input_summary": {
+    "gp3_gb": 8,
+    "idempotency_key_sha256": "9825e4f6c1394c25698e5579f04cf1f93698ad9bec3e026ad8f9881b33ac5cc6",
+    "instance_type": "t3.micro",
+    "period": "2026-10",
+    "planned_hours": 1,
+    "pricing_source": "fixture_unverified",
+    "requester": "redacted",
+    "team": "alpha"
+  },
+  "limitations": [
+    "Moto is a local AWS-service mock; this is not a live DynamoDB or AWS verification.",
+    "The scenario proves the AdmissionService ledger path, not API Gateway authentication or workflow execution.",
+    "Fixture pricing is illustrative and unverified against AWS prices."
+  ],
+  "observed": {
+    "budget_available_micro_usd": 49985835,
+    "budget_hold_micro_usd": 14165,
+    "budget_spent_micro_usd": 0,
+    "budget_total_micro_usd": 50000000,
+    "first_admission_status": "ADMITTED",
+    "replay_http_status": 200,
+    "replay_same_reservation": true,
+    "reservation_count": 1,
+    "workflow_count": null,
+    "workflow_identity": null,
+    "workflow_observation": "Not exercised; AdmissionService does not start Step Functions."
+  },
+  "result": "PASS",
+  "scenario": "retry-safe-admission"
+}
