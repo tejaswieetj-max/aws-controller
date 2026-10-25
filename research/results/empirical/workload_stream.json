@@ -1,0 +1,9 @@
+{
+  "approval_gate": "UNAPPROVED",
+  "blocked": true,
+  "reason": "Alibaba source is UNAPPROVED pending independent confirmation that CC BY 4.0 applies to the v2017 trace archive specifically.  Do not use in empirical results until the license is confirmed and this constant is updated.",
+  "notes": [
+    "Alibaba source is UNAPPROVED pending independent license confirmation.",
+    "Set _ALIBABA_APPROVED = True in alibaba_workload_adapter.py after independently verifying that CC BY 4.0 applies to the v2017 trace."
+  ]
+}

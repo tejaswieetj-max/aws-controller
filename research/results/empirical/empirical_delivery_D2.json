@@ -1,0 +1,25 @@
+{
+  "label": "D2",
+  "relative_path": "data/raw/focus12/delivery_2026-10-25/CALIBUR_FOCUS_12-00001.snappy.parquet",
+  "delivery_timestamp": "2026-10-25T03:32:00.757Z",
+  "execution_id": "ddede1a2-e372-34a5-aa28-36cacf5a98ef",
+  "sha256": "df688f94a119d2cc92b0347dc86b7ee4b3ec383a58671de2ce216347f375378b",
+  "sha256_verified": true,
+  "size_bytes": 105860,
+  "row_count": 12404,
+  "first_observed_utc": "2026-10-25T11:32:29.273434+00:00",
+  "s3_last_modified_utc": "2026-10-25T03:44:00+00:00",
+  "focus_version": "inferred:1.2",
+  "currency": "USD",
+  "missing_invoice_id_count": 12404,
+  "missing_resource_id_count": 622,
+  "empty_tags_count": 12404,
+  "notes": [
+    "BillingPeriodStart/End and ChargePeriodStart/End are billing-period boundary timestamps. They are NOT billing-record arrival times. No arrival time exists in the FOCUS 1.2 schema.",
+    "InvoiceId is fully null in known deliveries. No stable row-level unique key has been established. No key will be invented.",
+    "No linkage between these records and CALIBUR admission decisions or Alibaba workload records has been established.",
+    "Delivery: data/raw/focus12/delivery_2026-10-25/CALIBUR_FOCUS_12-00001.snappy.parquet",
+    "SHA-256 verified: True",
+    "ResourceId is null for 622 of 12404 rows. Linkage via ResourceId alone is not possible for those rows."
+  ]
+}

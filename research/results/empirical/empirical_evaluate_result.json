@@ -1,0 +1,132 @@
+{
+  "dataset": {
+    "classification": "AWS_EXPORT_ASSERTED_UNVERIFIED",
+    "observation_count": 0,
+    "observations": [],
+    "exclusions": [],
+    "exclusion_counts": {}
+  },
+  "metrics": {
+    "observation_count": 0,
+    "mae_micro": null,
+    "rmse_micro": null,
+    "mape_percent": null,
+    "mean_signed_bias_micro": null,
+    "underestimate_count": 0,
+    "overestimate_count": 0,
+    "negative_actual_count": 0,
+    "actual_to_estimated_mean": null,
+    "reserve_deficit_count": 0,
+    "reserve_deficit_micro": 0,
+    "worst_deficit_micro": 0,
+    "total_reserved_micro": 0,
+    "total_actual_micro": 0,
+    "unused_reserve_micro": 0,
+    "mape_excluded_zero_or_negative_actual": 0
+  },
+  "margin_evaluation": {
+    "candidate_margins": [
+      {
+        "margin": "1.00",
+        "sample_size": 0,
+        "total_reserved_micro": 0,
+        "total_actual_micro": 0,
+        "unused_reserve_micro": 0,
+        "insufficient_count": 0,
+        "insufficient_percent": null,
+        "aggregate_deficit_micro": 0,
+        "worst_deficit_micro": 0,
+        "holdout": "exploratory_insufficient_chronological_data",
+        "holdout_sample_size": 0,
+        "holdout_insufficient_count": 0,
+        "holdout_insufficient_percent": null,
+        "holdout_worst_deficit_micro": 0
+      },
+      {
+        "margin": "1.05",
+        "sample_size": 0,
+        "total_reserved_micro": 0,
+        "total_actual_micro": 0,
+        "unused_reserve_micro": 0,
+        "insufficient_count": 0,
+        "insufficient_percent": null,
+        "aggregate_deficit_micro": 0,
+        "worst_deficit_micro": 0,
+        "holdout": "exploratory_insufficient_chronological_data",
+        "holdout_sample_size": 0,
+        "holdout_insufficient_count": 0,
+        "holdout_insufficient_percent": null,
+        "holdout_worst_deficit_micro": 0
+      },
+      {
+        "margin": "1.10",
+        "sample_size": 0,
+        "total_reserved_micro": 0,
+        "total_actual_micro": 0,
+        "unused_reserve_micro": 0,
+        "insufficient_count": 0,
+        "insufficient_percent": null,
+        "aggregate_deficit_micro": 0,
+        "worst_deficit_micro": 0,
+        "holdout": "exploratory_insufficient_chronological_data",
+        "holdout_sample_size": 0,
+        "holdout_insufficient_count": 0,
+        "holdout_insufficient_percent": null,
+        "holdout_worst_deficit_micro": 0
+      },
+      {
+        "margin": "1.15",
+        "sample_size": 0,
+        "total_reserved_micro": 0,
+        "total_actual_micro": 0,
+        "unused_reserve_micro": 0,
+        "insufficient_count": 0,
+        "insufficient_percent": null,
+        "aggregate_deficit_micro": 0,
+        "worst_deficit_micro": 0,
+        "holdout": "exploratory_insufficient_chronological_data",
+        "holdout_sample_size": 0,
+        "holdout_insufficient_count": 0,
+        "holdout_insufficient_percent": null,
+        "holdout_worst_deficit_micro": 0
+      },
+      {
+        "margin": "1.25",
+        "sample_size": 0,
+        "total_reserved_micro": 0,
+        "total_actual_micro": 0,
+        "unused_reserve_micro": 0,
+        "insufficient_count": 0,
+        "insufficient_percent": null,
+        "aggregate_deficit_micro": 0,
+        "worst_deficit_micro": 0,
+        "holdout": "exploratory_insufficient_chronological_data",
+        "holdout_sample_size": 0,
+        "holdout_insufficient_count": 0,
+        "holdout_insufficient_percent": null,
+        "holdout_worst_deficit_micro": 0
+      },
+      {
+        "margin": "1.50",
+        "sample_size": 0,
+        "total_reserved_micro": 0,
+        "total_actual_micro": 0,
+        "unused_reserve_micro": 0,
+        "insufficient_count": 0,
+        "insufficient_percent": null,
+        "aggregate_deficit_micro": 0,
+        "worst_deficit_micro": 0,
+        "holdout": "exploratory_insufficient_chronological_data",
+        "holdout_sample_size": 0,
+        "holdout_insufficient_count": 0,
+        "holdout_insufficient_percent": null,
+        "holdout_worst_deficit_micro": 0
+      }
+    ],
+    "limitations": [
+      "recommendations only; production policy is unchanged",
+      "metrics are descriptive; no coverage guarantee is implied"
+    ]
+  },
+  "provenance": "aws_export"
+}

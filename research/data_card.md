@@ -26,4 +26,32 @@ This dataset may support descriptive workload analysis, including resource utili
 It does not establish actual AWS billing outcomes, billing-arrival delays, or a verified mapping between Alibaba records and AWS reservations. Results from this dataset alone cannot validate CALIBUR's real-world AWS budget-safety performance.
 
 ### Terms and license
-The applicable license or usage terms have not yet been independently verified. Confirm the terms in the official source before redistribution or publication of the data.s
+The applicable license or usage terms have not yet been independently verified. Confirm the terms in the official source before redistribution or publication of the data.
+
+---
+
+## Dataset: AWS FOCUS 1.2 Billing Export
+
+### Provenance
+- Source: AWS Data Exports, FOCUS 1.2 with AWS columns, export name `CALIBUR_FOCUS_12`.
+- Two deliveries acquired: 2026-10-24T19:27Z (111,251 bytes) and 2026-10-25T03:32Z (105,860 bytes).
+- FOCUS schema version 1.2 confirmed from `CALIBUR_FOCUS_12-Manifest-FOCUS.json` (`DataGenerator`: Amazon Web Services, Inc.; `FocusVersion`: 1.2).
+- Manifests on disk correspond to Delivery 2 only; no manifest exists for Delivery 1.
+
+### Unique-key status
+No verified unique billing-record identity key has been established. `InvoiceId` is fully null in the inspected data. No key will be invented. Snapshot comparison used descriptive grouping only and must not be treated as a row-level identity comparison.
+
+### No Alibaba-to-FOCUS or admission-to-billing linkage
+No verified key or join path connects Alibaba Cluster Trace records to FOCUS billing records or CALIBUR admission decisions. These datasets must not be joined without a documented, confirmed key. No such linkage will be fabricated.
+
+### Data-handling notice
+Raw FOCUS exports contain account-specific identifiers (`BillingAccountId`, `SubAccountId`, S3 bucket names, resource ARNs). These files must not be committed to any public repository or shared outside the project team. Only appropriately reviewed aggregate results and permitted schema information may be shared externally.
+
+### Measurement and interpretation limitations
+- `BillingPeriodStart`, `BillingPeriodEnd`, `ChargePeriodStart`, `ChargePeriodEnd` are billing-period boundary timestamps, not billing-record arrival times.
+- No billing-record arrival time, first-available timestamp, or revision timestamp is present in the FOCUS schema.
+- `BilledCost` is type `double` per the manifest; values are in USD. The sum approximately offsets to zero due to credits in the inspected snapshot; this does not establish that future costs will be zero.
+- `ResourceId` is null for a substantial fraction of rows; linkage to CALIBUR admission records via `ResourceId` alone is not possible without additional attribution.
+
+### Permitted research use in this project
+Descriptive analysis of genuine AWS billing records, snapshot-to-snapshot comparisons, and schema documentation. Not yet sufficient to validate CALIBUR's delayed-feedback or budget-safety claims.

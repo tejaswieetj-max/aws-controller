@@ -1,10 +1,40 @@
-"""Margin policies. Ratios are actual cost / modeled cost for observed runtime."""
+"""Margin policies. Ratios are actual cost / modeled cost for observed runtime.
+
+Persistence contract
+--------------------
+``MarginPolicies.to_dict()`` / ``MarginPolicies.from_dict()`` produce a
+JSON-serialisable snapshot so state can round-trip through DynamoDB, S3, or
+any key-value store between Lambda invocations.  The format is intentionally
+stable: new keys may be added in future versions but existing keys are never
+renamed.
+
+Resource-class convention
+--------------------------
+``resource_class_for(instance_type)`` returns the canonical key used by all
+callers, e.g. ``"ec2:t3"`` for ``"t3.micro"`` or ``"t3.small"``.  Using
+a shared family key pools samples across instance sizes within a family,
+which is appropriate for the small number of supported instance types.
+"""
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from math import ceil
+from typing import Any
 
 FIXED = 1.10
+
+
+def resource_class_for(instance_type: str) -> str:
+    """Return the canonical CALIBUR resource-class key for *instance_type*.
+
+    Examples::
+
+        resource_class_for("t3.micro")  -> "ec2:t3"
+        resource_class_for("t3.small")  -> "ec2:t3"
+        resource_class_for("m5.xlarge") -> "ec2:m5"
+    """
+    family = instance_type.split(".")[0] if instance_type else "unknown"
+    return f"ec2:{family}"
 
 
 def quantile(values: Iterable[float], level: float) -> float:
@@ -111,3 +141,90 @@ class MarginPolicies:
                 "adaptive heuristic has no unconditional coverage guarantee",
             ],
         }
+
+    # ------------------------------------------------------------------
+    # Persistence contract
+    # ------------------------------------------------------------------
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialise all state to a JSON-safe dict.
+
+        The format is stable: callers may add new top-level keys in their
+        own wrappers, but should not mutate keys produced here.
+        """
+        samples_out: dict[str, list[dict]] = {}
+        for rc, slist in self.samples.items():
+            samples_out[rc] = [
+                {
+                    "settlement_id": s.settlement_id,
+                    "ratio": s.ratio,
+                    "reserved_micro": s.reserved_micro,
+                    "actual_micro": s.actual_micro,
+                    "modeled_runtime_micro": s.modeled_runtime_micro,
+                    "settled_order": s.settled_order,
+                }
+                for s in slist
+            ]
+
+        split_out: dict[str, list[float]] = {
+            rc: list(ratios) for rc, ratios in self.split_calibration.items()
+        }
+
+        return {
+            "version": 1,
+            "gamma": self.gamma,
+            "target_alpha": self.target_alpha,
+            "samples": samples_out,
+            "alpha_by_class": {
+                rc: state.alpha for rc, state in self.adaptive.items()
+            },
+            "split_calibration": split_out,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MarginPolicies":
+        """Reconstruct a ``MarginPolicies`` from a previously serialised dict.
+
+        Unknown keys are silently ignored so that future schema additions do
+        not break older deserialisation code.  The alpha value stored in
+        ``alpha_by_class`` is *applied directly*; the sample list is NOT
+        re-replayed on load (the stored alpha already reflects all samples).
+        """
+        if not isinstance(data, dict):
+            raise ValueError("calibration state must be a JSON object")
+        version = data.get("version", 1)
+        if version != 1:
+            raise ValueError(f"unsupported calibration state version: {version}")
+
+        obj = cls(
+            gamma=float(data.get("gamma", 0.02)),
+            target_alpha=float(data.get("target_alpha", 0.05)),
+        )
+
+        for rc, slist in data.get("samples", {}).items():
+            parsed: list[Sample] = []
+            seen: set[str] = set()
+            for row in slist:
+                s = Sample(
+                    settlement_id=str(row["settlement_id"]),
+                    ratio=float(row["ratio"]),
+                    reserved_micro=int(row["reserved_micro"]),
+                    actual_micro=int(row["actual_micro"]),
+                    modeled_runtime_micro=int(row["modeled_runtime_micro"]),
+                    settled_order=int(row["settled_order"]),
+                )
+                parsed.append(s)
+                seen.add(s.settlement_id)
+            # Preserve documented sort order.
+            parsed.sort(key=lambda s: (s.settled_order, s.settlement_id))
+            obj.samples[rc] = parsed
+            obj.adaptive[rc] = AdaptiveState(
+                alpha=float(data.get("alpha_by_class", {}).get(rc, obj.target_alpha)),
+                samples=parsed,
+                seen=seen,
+            )
+
+        for rc, ratios in data.get("split_calibration", {}).items():
+            obj.split_calibration[rc] = sorted(float(x) for x in ratios if float(x) > 0)
+
+        return obj

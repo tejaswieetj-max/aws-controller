@@ -1,0 +1,2222 @@
+{
+  "report_version": 2,
+  "generated_at_utc": "2026-10-25T08:16:23.282223+00:00",
+  "repository_root": "/Users/tejaswie/Downloads/spendctl",
+  "raw_directory_present": true,
+  "files_discovered": 11,
+  "files_profiled": 11,
+  "errors": [],
+  "results": [
+    {
+      "relative_path": "data/raw/alibaba_trace_2017/alibaba-trace-2017/batch_instance.csv",
+      "file_type": "csv",
+      "encoding": "utf-8",
+      "size_bytes": 858546781,
+      "sha256": "195f25ef36484a2da9bb92c08e203224ed34a32f48fcbe11c01d94ecf308d817",
+      "row_count": 16094656,
+      "column_count_documented": 12,
+      "column_count_observed": 12,
+      "schema_match": "exact_match",
+      "exact_duplicate_record_count": null,
+      "key_uniqueness": "unknown",
+      "fields": [
+        {
+          "name": "task_name",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Opaque task identifier."
+        },
+        {
+          "name": "job_name",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Opaque job identifier."
+        },
+        {
+          "name": "task_type",
+          "classification": "observed",
+          "missing_count": 3992098,
+          "invalid_count": 0,
+          "sentinel_count": 3992098,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Integer type code; blank is a documented missing value in the trace."
+        },
+        {
+          "name": "inst_seq_num",
+          "classification": "observed",
+          "missing_count": 3992098,
+          "invalid_count": 0,
+          "sentinel_count": 3992098,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Instance sequence number within the task; blank is documented missing."
+        },
+        {
+          "name": "start_time",
+          "classification": "observed",
+          "missing_count": 1342871,
+          "invalid_count": 0,
+          "sentinel_count": 1342871,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Seconds relative to trace epoch; blank means not recorded."
+        },
+        {
+          "name": "end_time",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Seconds relative to trace epoch; blank means not recorded."
+        },
+        {
+          "name": "machine_id",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Opaque machine identifier."
+        },
+        {
+          "name": "status",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Categorical terminal/non-terminal state."
+        },
+        {
+          "name": "seq_no",
+          "classification": "observed",
+          "missing_count": 2386677,
+          "invalid_count": 0,
+          "sentinel_count": 2386677,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Retry sequence number; blank is documented missing."
+        },
+        {
+          "name": "total_seq_num",
+          "classification": "observed",
+          "missing_count": 2386677,
+          "invalid_count": 0,
+          "sentinel_count": 2386677,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Total retry count; blank is documented missing."
+        },
+        {
+          "name": "cpu_avg",
+          "classification": "observed",
+          "missing_count": 14167556,
+          "invalid_count": 0,
+          "sentinel_count": 14167556,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Average CPU utilisation ratio (0-1 normalised); blank is documented missing."
+        },
+        {
+          "name": "mem_avg",
+          "classification": "observed",
+          "missing_count": 14166324,
+          "invalid_count": 0,
+          "sentinel_count": 14166324,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Average memory utilisation ratio (0-1 normalised); blank is documented missing."
+        }
+      ],
+      "notes": [
+        "Dataset: alibaba_v2017/batch_instance.csv",
+        "No header row present; column names assigned from official trace_201708.md documentation.",
+        "Column count: documented=12, observed=12 (exact_match).",
+        "Timestamps are seconds relative to the trace epoch; zero may indicate events before the trace window.",
+        "Memory values are normalised/obfuscated; CPU core counts are NOT normalised in the same way.",
+        "Measurements are NOT AWS billing amounts or AWS resource identifiers.",
+        "No cross-dataset join with AWS FOCUS data has been established.",
+        "Exact-duplicate detection skipped for large file (858,546,781 bytes > 50 MB); key uniqueness is UNKNOWN."
+      ],
+      "dataset": "alibaba_v2017/batch_instance.csv",
+      "source_approved": false,
+      "schema_version": "trace_201708.md (official Alibaba trace documentation)"
+    },
+    {
+      "relative_path": "data/raw/alibaba_trace_2017/alibaba-trace-2017/batch_task.csv",
+      "file_type": "csv",
+      "encoding": "utf-8",
+      "size_bytes": 4631973,
+      "sha256": "50f3c50ab4a917ad06c1cee6ec601e1356708774d7962503e8eafdd720b2286d",
+      "row_count": 80553,
+      "column_count_documented": 8,
+      "column_count_observed": 8,
+      "schema_match": "exact_match",
+      "exact_duplicate_record_count": 0,
+      "key_uniqueness": "no_exact_duplicates_found",
+      "fields": [
+        {
+          "name": "task_name",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Opaque integer identifier from source; not a dollar value."
+        },
+        {
+          "name": "inst_num",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Number of instances in the task; observed count from source."
+        },
+        {
+          "name": "job_name",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Opaque integer identifier for the parent job."
+        },
+        {
+          "name": "task_type",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Integer type code from source trace."
+        },
+        {
+          "name": "start_time",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Seconds relative to trace epoch; unit documented in trace_201708.md. Zero or blank means event fell before or outside the trace window."
+        },
+        {
+          "name": "status",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Categorical terminal/non-terminal state from source."
+        },
+        {
+          "name": "plan_cpu",
+          "classification": "observed",
+          "missing_count": 9017,
+          "invalid_count": 0,
+          "sentinel_count": 9017,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Requested CPU cores; documented sentinel: blank means not recorded."
+        },
+        {
+          "name": "plan_mem",
+          "classification": "observed",
+          "missing_count": 9017,
+          "invalid_count": 0,
+          "sentinel_count": 9017,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Requested normalised memory; documented sentinel: blank means not recorded."
+        }
+      ],
+      "notes": [
+        "Dataset: alibaba_v2017/batch_task.csv",
+        "No header row present; column names assigned from official trace_201708.md documentation.",
+        "Column count: documented=8, observed=8 (exact_match).",
+        "Timestamps are seconds relative to the trace epoch; zero may indicate events before the trace window.",
+        "Memory values are normalised/obfuscated; CPU core counts are NOT normalised in the same way.",
+        "Measurements are NOT AWS billing amounts or AWS resource identifiers.",
+        "No cross-dataset join with AWS FOCUS data has been established."
+      ],
+      "dataset": "alibaba_v2017/batch_task.csv",
+      "source_approved": false,
+      "schema_version": "trace_201708.md (official Alibaba trace documentation)"
+    },
+    {
+      "relative_path": "data/raw/alibaba_trace_2017/alibaba-trace-2017/container_event.csv",
+      "file_type": "csv",
+      "encoding": "utf-8",
+      "size_bytes": 875035,
+      "sha256": "8e2c2776983fb0867f5088352849773186eab22de9d878e10978b5018c68aeda",
+      "row_count": 11102,
+      "column_count_documented": 9,
+      "column_count_observed": 9,
+      "schema_match": "exact_match",
+      "exact_duplicate_record_count": 0,
+      "key_uniqueness": "no_exact_duplicates_found",
+      "fields": [
+        {
+          "name": "timestamp",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Seconds relative to trace epoch."
+        },
+        {
+          "name": "event_type",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Categorical event type (Create, Delete, etc.)."
+        },
+        {
+          "name": "container_id",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Opaque container identifier."
+        },
+        {
+          "name": "machine_id",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Opaque machine identifier."
+        },
+        {
+          "name": "cpu_request",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Requested CPU cores at event time."
+        },
+        {
+          "name": "mem_request",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Requested normalised memory at event time."
+        },
+        {
+          "name": "disk_request",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Requested normalised disk at event time."
+        },
+        {
+          "name": "cpu_affinity",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "CPU core affinity list (pipe-separated); blank means not set."
+        },
+        {
+          "name": "extra",
+          "classification": "unknown",
+          "missing_count": 11102,
+          "invalid_count": 0,
+          "sentinel_count": 11102,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Ninth column present in data; not documented in trace_201708.md."
+        }
+      ],
+      "notes": [
+        "Dataset: alibaba_v2017/container_event.csv",
+        "No header row present; column names assigned from official trace_201708.md documentation.",
+        "Column count: documented=9, observed=9 (exact_match).",
+        "Timestamps are seconds relative to the trace epoch; zero may indicate events before the trace window.",
+        "Memory values are normalised/obfuscated; CPU core counts are NOT normalised in the same way.",
+        "Measurements are NOT AWS billing amounts or AWS resource identifiers.",
+        "No cross-dataset join with AWS FOCUS data has been established."
+      ],
+      "dataset": "alibaba_v2017/container_event.csv",
+      "source_approved": false,
+      "schema_version": "trace_201708.md (official Alibaba trace documentation)"
+    },
+    {
+      "relative_path": "data/raw/alibaba_trace_2017/alibaba-trace-2017/container_usage.csv",
+      "file_type": "csv",
+      "encoding": "utf-8",
+      "size_bytes": 275992839,
+      "sha256": "9ccb7abafdc492b173eb87b49c9cec3df30cb6e8fbfce09e7023be826de3a10a",
+      "row_count": 1480906,
+      "column_count_documented": 12,
+      "column_count_observed": 12,
+      "schema_match": "exact_match",
+      "exact_duplicate_record_count": null,
+      "key_uniqueness": "unknown",
+      "fields": [
+        {
+          "name": "timestamp",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Seconds relative to trace epoch; 300-second averaged sample."
+        },
+        {
+          "name": "container_id",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Opaque container identifier."
+        },
+        {
+          "name": "cpu_util",
+          "classification": "observed",
+          "missing_count": 3,
+          "invalid_count": 0,
+          "sentinel_count": 3,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "CPU utilisation percentage (0-100); 300-second average."
+        },
+        {
+          "name": "cpu_util_max",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Maximum CPU utilisation in the 300-second window."
+        },
+        {
+          "name": "mem_util",
+          "classification": "observed",
+          "missing_count": 5,
+          "invalid_count": 0,
+          "sentinel_count": 5,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Memory utilisation percentage (0-100)."
+        },
+        {
+          "name": "disk_read_rate",
+          "classification": "observed",
+          "missing_count": 5,
+          "invalid_count": 0,
+          "sentinel_count": 5,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Disk read rate, normalised units per trace documentation."
+        },
+        {
+          "name": "disk_write_rate",
+          "classification": "observed",
+          "missing_count": 5,
+          "invalid_count": 0,
+          "sentinel_count": 5,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Disk write rate, normalised units."
+        },
+        {
+          "name": "disk_read_rate2",
+          "classification": "observed",
+          "missing_count": 5,
+          "invalid_count": 0,
+          "sentinel_count": 5,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Secondary disk read rate measurement."
+        },
+        {
+          "name": "net_in",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Network ingress rate, normalised."
+        },
+        {
+          "name": "net_out",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Network egress rate, normalised."
+        },
+        {
+          "name": "mem_util2",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Secondary memory utilisation measurement."
+        },
+        {
+          "name": "mem_util3",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Tertiary memory utilisation measurement."
+        }
+      ],
+      "notes": [
+        "Dataset: alibaba_v2017/container_usage.csv",
+        "No header row present; column names assigned from official trace_201708.md documentation.",
+        "Column count: documented=12, observed=12 (exact_match).",
+        "Timestamps are seconds relative to the trace epoch; zero may indicate events before the trace window.",
+        "Memory values are normalised/obfuscated; CPU core counts are NOT normalised in the same way.",
+        "Measurements are NOT AWS billing amounts or AWS resource identifiers.",
+        "No cross-dataset join with AWS FOCUS data has been established.",
+        "Exact-duplicate detection skipped for large file (275,992,839 bytes > 50 MB); key uniqueness is UNKNOWN."
+      ],
+      "dataset": "alibaba_v2017/container_usage.csv",
+      "source_approved": false,
+      "schema_version": "trace_201708.md (official Alibaba trace documentation)"
+    },
+    {
+      "relative_path": "data/raw/alibaba_trace_2017/alibaba-trace-2017/server_event.csv",
+      "file_type": "csv",
+      "encoding": "utf-8",
+      "size_bytes": 47615,
+      "sha256": "336f7255add3ae3c08bf5163b15319f542365a3c7814ed3f712699560933968b",
+      "row_count": 1352,
+      "column_count_documented": 7,
+      "column_count_observed": 7,
+      "schema_match": "exact_match",
+      "exact_duplicate_record_count": 0,
+      "key_uniqueness": "no_exact_duplicates_found",
+      "fields": [
+        {
+          "name": "timestamp",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Seconds relative to trace epoch."
+        },
+        {
+          "name": "machine_id",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Opaque machine identifier."
+        },
+        {
+          "name": "event_type",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Categorical event type (add, remove, etc.)."
+        },
+        {
+          "name": "extra",
+          "classification": "unknown",
+          "missing_count": 1313,
+          "invalid_count": 0,
+          "sentinel_count": 1313,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Fourth column present in data; may be optional per documentation."
+        },
+        {
+          "name": "cpu_cores",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Physical CPU core count; NOT normalised unlike memory fields."
+        },
+        {
+          "name": "mem_size",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Normalised memory capacity per trace_201708.md."
+        },
+        {
+          "name": "disk_size",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Disk capacity; units per trace documentation."
+        }
+      ],
+      "notes": [
+        "Dataset: alibaba_v2017/server_event.csv",
+        "No header row present; column names assigned from official trace_201708.md documentation.",
+        "Column count: documented=7, observed=7 (exact_match).",
+        "Timestamps are seconds relative to the trace epoch; zero may indicate events before the trace window.",
+        "Memory values are normalised/obfuscated; CPU core counts are NOT normalised in the same way.",
+        "Measurements are NOT AWS billing amounts or AWS resource identifiers.",
+        "No cross-dataset join with AWS FOCUS data has been established."
+      ],
+      "dataset": "alibaba_v2017/server_event.csv",
+      "source_approved": false,
+      "schema_version": "trace_201708.md (official Alibaba trace documentation)"
+    },
+    {
+      "relative_path": "data/raw/alibaba_trace_2017/alibaba-trace-2017/server_usage.csv",
+      "file_type": "csv",
+      "encoding": "utf-8",
+      "size_bytes": 19030775,
+      "sha256": "032fa4193f4b426941fb1eecef5add3d8b0632aaf7cbd7663b0051ceb8a4637a",
+      "row_count": 187963,
+      "column_count_documented": 8,
+      "column_count_observed": 8,
+      "schema_match": "exact_match",
+      "exact_duplicate_record_count": 0,
+      "key_uniqueness": "no_exact_duplicates_found",
+      "fields": [
+        {
+          "name": "timestamp",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Seconds relative to trace epoch; 300-second averaged sample."
+        },
+        {
+          "name": "machine_id",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Opaque machine identifier."
+        },
+        {
+          "name": "cpu_util",
+          "classification": "observed",
+          "missing_count": 1,
+          "invalid_count": 0,
+          "sentinel_count": 1,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "CPU utilisation percentage; 300-second average."
+        },
+        {
+          "name": "cpu_util_max",
+          "classification": "observed",
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Maximum CPU utilisation in the 300-second window."
+        },
+        {
+          "name": "mem_util",
+          "classification": "observed",
+          "missing_count": 1,
+          "invalid_count": 0,
+          "sentinel_count": 1,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Memory utilisation percentage."
+        },
+        {
+          "name": "net_in",
+          "classification": "observed",
+          "missing_count": 1,
+          "invalid_count": 0,
+          "sentinel_count": 1,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Network ingress rate, normalised units."
+        },
+        {
+          "name": "net_out",
+          "classification": "observed",
+          "missing_count": 1,
+          "invalid_count": 0,
+          "sentinel_count": 1,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Network egress rate, normalised units."
+        },
+        {
+          "name": "disk_io",
+          "classification": "observed",
+          "missing_count": 1,
+          "invalid_count": 0,
+          "sentinel_count": 1,
+          "sentinel_definition": "blank string — documented missing value in Alibaba trace",
+          "reason": "Disk I/O rate, normalised units."
+        }
+      ],
+      "notes": [
+        "Dataset: alibaba_v2017/server_usage.csv",
+        "No header row present; column names assigned from official trace_201708.md documentation.",
+        "Column count: documented=8, observed=8 (exact_match).",
+        "Timestamps are seconds relative to the trace epoch; zero may indicate events before the trace window.",
+        "Memory values are normalised/obfuscated; CPU core counts are NOT normalised in the same way.",
+        "Measurements are NOT AWS billing amounts or AWS resource identifiers.",
+        "No cross-dataset join with AWS FOCUS data has been established."
+      ],
+      "dataset": "alibaba_v2017/server_usage.csv",
+      "source_approved": false,
+      "schema_version": "trace_201708.md (official Alibaba trace documentation)"
+    },
+    {
+      "relative_path": "data/raw/alibaba_v2017/alibaba-trace-2017.tar.gz",
+      "file_type": "tar.gz",
+      "encoding": "binary (gzip-compressed tar)",
+      "size_bytes": 243321159,
+      "sha256": "b7efe9dc9caa75352de41b9ac34b329602cde3414fd7cab87c1d21a9a9871d66",
+      "row_count": null,
+      "member_count": 7,
+      "members": [
+        {
+          "name": "alibaba-trace-2017",
+          "size_bytes": 0,
+          "is_directory": true
+        },
+        {
+          "name": "alibaba-trace-2017/batch_task.csv",
+          "size_bytes": 4631973,
+          "is_directory": false
+        },
+        {
+          "name": "alibaba-trace-2017/server_event.csv",
+          "size_bytes": 47615,
+          "is_directory": false
+        },
+        {
+          "name": "alibaba-trace-2017/container_usage.csv",
+          "size_bytes": 275992839,
+          "is_directory": false
+        },
+        {
+          "name": "alibaba-trace-2017/batch_instance.csv",
+          "size_bytes": 858546781,
+          "is_directory": false
+        },
+        {
+          "name": "alibaba-trace-2017/server_usage.csv",
+          "size_bytes": 19030775,
+          "is_directory": false
+        },
+        {
+          "name": "alibaba-trace-2017/container_event.csv",
+          "size_bytes": 875035,
+          "is_directory": false
+        }
+      ],
+      "exact_duplicate_record_count": null,
+      "key_uniqueness": "n/a — archive, not tabular data",
+      "fields": [],
+      "notes": [
+        "Archive inspected by listing members only.  No files were extracted or modified.",
+        "Extracted files are already present under data/raw/alibaba_trace_2017/ — profiled separately.",
+        "SHA-256 matches provenance recorded in research/data_manifest.md."
+      ],
+      "dataset": "alibaba_v2017_archive",
+      "source_approved": false,
+      "schema_version": "trace_201708.md (official Alibaba trace documentation)"
+    },
+    {
+      "relative_path": "data/raw/focus12/CALIBUR_FOCUS_12-00001.snappy.parquet",
+      "file_type": "parquet/snappy",
+      "encoding": "binary (Parquet)",
+      "size_bytes": 111251,
+      "sha256": "e829bfa81b344c07e7803d52bd7e9863eba2240e37cea4a701c2dc48f5220597",
+      "row_count": 12200,
+      "column_count_observed": 60,
+      "column_count_required_defined": 13,
+      "missing_required_fields": [],
+      "exact_duplicate_record_count": null,
+      "key_uniqueness": "unknown — no candidate key justified for FOCUS rows",
+      "cost_summary": {
+        "BilledCost": {
+          "currency": "USD (all rows)",
+          "sum": -1.3e-07,
+          "min": -0.504,
+          "max": 0.03,
+          "non_null_count": 12200
+        },
+        "EffectiveCost": {
+          "currency": "USD (all rows)",
+          "sum": -1.3e-07,
+          "min": -0.504,
+          "max": 0.03,
+          "non_null_count": 12200
+        },
+        "ListCost": {
+          "currency": "USD (all rows)",
+          "sum": -1.3e-07,
+          "min": -0.504,
+          "max": 0.03,
+          "non_null_count": 12200
+        }
+      },
+      "fields": [
+        {
+          "name": "BilledCost",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "NaN (floating-point not-a-number)",
+          "reason": "Actual billed amount in BillingCurrency; required FOCUS 1.2 column."
+        },
+        {
+          "name": "BillingCurrency",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "ISO 4217 currency code; required FOCUS 1.2 column."
+        },
+        {
+          "name": "BillingPeriodEnd",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "UTC timestamp marking end of billing period; required FOCUS 1.2 column. This is a billing-period boundary, NOT a billing-record arrival timestamp."
+        },
+        {
+          "name": "BillingPeriodStart",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "UTC timestamp marking start of billing period; required FOCUS 1.2 column. This is a billing-period boundary, NOT a billing-record arrival timestamp."
+        },
+        {
+          "name": "ChargeCategory",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Charge classification (Usage, Credit, Tax, etc.); required FOCUS 1.2 column."
+        },
+        {
+          "name": "ChargeFrequency",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Charge recurrence type; required FOCUS 1.2 column."
+        },
+        {
+          "name": "InvoiceIssuerName",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Issuing entity name; required FOCUS 1.2 column."
+        },
+        {
+          "name": "ProviderName",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Cloud provider name; required FOCUS 1.2 column."
+        },
+        {
+          "name": "RegionId",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Provider-assigned region identifier; required FOCUS 1.2 column."
+        },
+        {
+          "name": "RegionName",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Human-readable region name; required FOCUS 1.2 column."
+        },
+        {
+          "name": "ServiceCategory",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "FinOps taxonomy service grouping; required FOCUS 1.2 column."
+        },
+        {
+          "name": "SubAccountType",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Sub-account kind (e.g. AWS Account); required FOCUS 1.2 column."
+        },
+        {
+          "name": "BillingAccountType",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Billing-account kind; required FOCUS 1.2 column."
+        },
+        {
+          "name": "EffectiveCost",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "NaN (floating-point not-a-number)",
+          "reason": "Cost after commitment discounts; FOCUS 1.2 optional column."
+        },
+        {
+          "name": "ListCost",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "NaN (floating-point not-a-number)",
+          "reason": "On-demand list-price cost; FOCUS 1.2 optional column."
+        },
+        {
+          "name": "ChargePeriodStart",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "UTC start of charge period; FOCUS 1.2 optional. NOT a billing-record arrival timestamp."
+        },
+        {
+          "name": "ChargePeriodEnd",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "UTC end of charge period; FOCUS 1.2 optional. NOT a billing-record arrival timestamp."
+        },
+        {
+          "name": "ResourceId",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 606,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Provider resource ARN/identifier; FOCUS 1.2 optional. Required for linkage to CALIBUR admission records — absent rows break linkage."
+        },
+        {
+          "name": "ServiceName",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Provider service name; FOCUS 1.2 optional."
+        },
+        {
+          "name": "Tags",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 12200,
+          "sentinel_definition": "null or empty map",
+          "reason": "Key-value tag map; FOCUS 1.2 optional. No CALIBUR reservation-id or team tags observed in this delivery."
+        },
+        {
+          "name": "InvoiceId",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Invoice identifier; FOCUS 1.2 optional. Fully null in this delivery."
+        },
+        {
+          "name": "SkuId",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 82,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Provider SKU identifier; FOCUS 1.2 optional."
+        },
+        {
+          "name": "ConsumedQuantity",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 411,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "NaN (floating-point not-a-number)",
+          "reason": "Actual usage quantity; FOCUS 1.2 optional."
+        },
+        {
+          "name": "ConsumedUnit",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 411,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Unit for ConsumedQuantity; FOCUS 1.2 optional."
+        },
+        {
+          "name": "x_Operation",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 316,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "AWS-specific operation string (FOCUS AWS extension column)."
+        },
+        {
+          "name": "x_ServiceCode",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "AWS-specific service code (FOCUS AWS extension column)."
+        },
+        {
+          "name": "AvailabilityZone",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 10300,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "BillingAccountId",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "BillingAccountName",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CapacityReservationId",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CapacityReservationStatus",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ChargeClass",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ChargeDescription",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountCategory",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountId",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountName",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountQuantity",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountStatus",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountType",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountUnit",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ContractedCost",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ContractedUnitPrice",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 411,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ListUnitPrice",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 411,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingCategory",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 82,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingCurrency",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingCurrencyContractedUnitPrice",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 411,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingCurrencyEffectiveCost",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingCurrencyListUnitPrice",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 411,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingQuantity",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 82,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingUnit",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 82,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PublisherName",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ResourceName",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ResourceType",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 606,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ServiceSubcategory",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12200,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "SkuMeter",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "SkuPriceDetails",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 10755,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "SkuPriceId",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 411,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "SubAccountId",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "SubAccountName",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "x_Discounts",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        }
+      ],
+      "notes": [
+        "Dataset: AWS FOCUS 1.2 billing export (CALIBUR_FOCUS_12).",
+        "Parquet metadata: org.apache.spark.version present in file metadata.",
+        "Billing period: 2026-10-01 00:00:00+00:00 to 2026-11-01 00:00:00+00:00 (billing-period boundary timestamps, NOT billing-arrival timestamps).",
+        "BillingPeriodStart/End and ChargePeriodStart/End are period-boundary timestamps. The time this record first became available to a controller has NOT been recorded.",
+        "Tags: 0 rows with non-empty tag maps out of 12200. No CALIBUR reservation-id or team tags are present. Linkage between these billing records and CALIBUR admission decisions is NOT established.",
+        "InvoiceId: fully null in this delivery — no invoice number is available for deduplication.",
+        "One delivery snapshot only. Billing revisions have not been observed.",
+        "Currency: USD for all 12,200 rows.",
+        "ChargeClass: fully null — no adjustment/correction class values present in this delivery.",
+        "BilledCost sum ≈ 0 due to credit offset; this does not mean future costs will be zero."
+      ],
+      "dataset": "focus12",
+      "source_approved": true,
+      "schema_version": "FOCUS 1.2 (FocusVersion 1.2, SchemaId 1.0.0, schema_creation_date 2025-11-19T00:00:00Z)",
+      "unresolved_quality_issues": [
+        "AWS account-ID discrepancy in FOCUS delivery metadata",
+        "Delivery 1 has no manifest file",
+        "No verified row-level unique key for FOCUS billing records"
+      ]
+    },
+    {
+      "relative_path": "data/raw/focus12/CALIBUR_FOCUS_12-Manifest-FOCUS.json",
+      "file_type": "unsupported (.json)",
+      "encoding": "unknown",
+      "size_bytes": 4927,
+      "sha256": "898bb08c152fee6a2d8af114b28f41235d938045849666c636c161010943ed16",
+      "row_count": null,
+      "exact_duplicate_record_count": null,
+      "key_uniqueness": "unknown",
+      "fields": [],
+      "notes": [
+        "File type '.json' is not supported by the profiler."
+      ],
+      "dataset": "unknown"
+    },
+    {
+      "relative_path": "data/raw/focus12/CALIBUR_FOCUS_12-Manifest.json",
+      "file_type": "unsupported (.json)",
+      "encoding": "unknown",
+      "size_bytes": 3050,
+      "sha256": "ceb0afedd5c6964889673f45b9b1a842f9d8926a3a5f04c0acdf4c323afe4bb0",
+      "row_count": null,
+      "exact_duplicate_record_count": null,
+      "key_uniqueness": "unknown",
+      "fields": [],
+      "notes": [
+        "File type '.json' is not supported by the profiler."
+      ],
+      "dataset": "unknown"
+    },
+    {
+      "relative_path": "data/raw/focus12/delivery_2026-10-25/CALIBUR_FOCUS_12-00001.snappy.parquet",
+      "file_type": "parquet/snappy",
+      "encoding": "binary (Parquet)",
+      "size_bytes": 105860,
+      "sha256": "df688f94a119d2cc92b0347dc86b7ee4b3ec383a58671de2ce216347f375378b",
+      "row_count": 12404,
+      "column_count_observed": 60,
+      "column_count_required_defined": 13,
+      "missing_required_fields": [],
+      "exact_duplicate_record_count": null,
+      "key_uniqueness": "unknown — no candidate key justified for FOCUS rows",
+      "cost_summary": {
+        "BilledCost": {
+          "currency": "USD (all rows)",
+          "sum": -1.3e-07,
+          "min": -0.504,
+          "max": 0.03,
+          "non_null_count": 12404
+        },
+        "EffectiveCost": {
+          "currency": "USD (all rows)",
+          "sum": -1.3e-07,
+          "min": -0.504,
+          "max": 0.03,
+          "non_null_count": 12404
+        },
+        "ListCost": {
+          "currency": "USD (all rows)",
+          "sum": -1.3e-07,
+          "min": -0.504,
+          "max": 0.03,
+          "non_null_count": 12404
+        }
+      },
+      "fields": [
+        {
+          "name": "BilledCost",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "NaN (floating-point not-a-number)",
+          "reason": "Actual billed amount in BillingCurrency; required FOCUS 1.2 column."
+        },
+        {
+          "name": "BillingCurrency",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "ISO 4217 currency code; required FOCUS 1.2 column."
+        },
+        {
+          "name": "BillingPeriodEnd",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "UTC timestamp marking end of billing period; required FOCUS 1.2 column. This is a billing-period boundary, NOT a billing-record arrival timestamp."
+        },
+        {
+          "name": "BillingPeriodStart",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "UTC timestamp marking start of billing period; required FOCUS 1.2 column. This is a billing-period boundary, NOT a billing-record arrival timestamp."
+        },
+        {
+          "name": "ChargeCategory",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Charge classification (Usage, Credit, Tax, etc.); required FOCUS 1.2 column."
+        },
+        {
+          "name": "ChargeFrequency",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Charge recurrence type; required FOCUS 1.2 column."
+        },
+        {
+          "name": "InvoiceIssuerName",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Issuing entity name; required FOCUS 1.2 column."
+        },
+        {
+          "name": "ProviderName",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Cloud provider name; required FOCUS 1.2 column."
+        },
+        {
+          "name": "RegionId",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Provider-assigned region identifier; required FOCUS 1.2 column."
+        },
+        {
+          "name": "RegionName",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Human-readable region name; required FOCUS 1.2 column."
+        },
+        {
+          "name": "ServiceCategory",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "FinOps taxonomy service grouping; required FOCUS 1.2 column."
+        },
+        {
+          "name": "SubAccountType",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Sub-account kind (e.g. AWS Account); required FOCUS 1.2 column."
+        },
+        {
+          "name": "BillingAccountType",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Billing-account kind; required FOCUS 1.2 column."
+        },
+        {
+          "name": "EffectiveCost",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "NaN (floating-point not-a-number)",
+          "reason": "Cost after commitment discounts; FOCUS 1.2 optional column."
+        },
+        {
+          "name": "ListCost",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "NaN (floating-point not-a-number)",
+          "reason": "On-demand list-price cost; FOCUS 1.2 optional column."
+        },
+        {
+          "name": "ChargePeriodStart",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "UTC start of charge period; FOCUS 1.2 optional. NOT a billing-record arrival timestamp."
+        },
+        {
+          "name": "ChargePeriodEnd",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "UTC end of charge period; FOCUS 1.2 optional. NOT a billing-record arrival timestamp."
+        },
+        {
+          "name": "ResourceId",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 622,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Provider resource ARN/identifier; FOCUS 1.2 optional. Required for linkage to CALIBUR admission records — absent rows break linkage."
+        },
+        {
+          "name": "ServiceName",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Provider service name; FOCUS 1.2 optional."
+        },
+        {
+          "name": "Tags",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 12404,
+          "sentinel_definition": "null or empty map",
+          "reason": "Key-value tag map; FOCUS 1.2 optional. No CALIBUR reservation-id or team tags observed in this delivery."
+        },
+        {
+          "name": "InvoiceId",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Invoice identifier; FOCUS 1.2 optional. Fully null in this delivery."
+        },
+        {
+          "name": "SkuId",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 82,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Provider SKU identifier; FOCUS 1.2 optional."
+        },
+        {
+          "name": "ConsumedQuantity",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 418,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "NaN (floating-point not-a-number)",
+          "reason": "Actual usage quantity; FOCUS 1.2 optional."
+        },
+        {
+          "name": "ConsumedUnit",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 418,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "Unit for ConsumedQuantity; FOCUS 1.2 optional."
+        },
+        {
+          "name": "x_Operation",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 323,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "AWS-specific operation string (FOCUS AWS extension column)."
+        },
+        {
+          "name": "x_ServiceCode",
+          "classification": "observed",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none documented",
+          "reason": "AWS-specific service code (FOCUS AWS extension column)."
+        },
+        {
+          "name": "AvailabilityZone",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 10472,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "BillingAccountId",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "BillingAccountName",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CapacityReservationId",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CapacityReservationStatus",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ChargeClass",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ChargeDescription",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountCategory",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountId",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountName",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountQuantity",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountStatus",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountType",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "CommitmentDiscountUnit",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ContractedCost",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ContractedUnitPrice",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 418,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ListUnitPrice",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 418,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingCategory",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 82,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingCurrency",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingCurrencyContractedUnitPrice",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 418,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingCurrencyEffectiveCost",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingCurrencyListUnitPrice",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 418,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingQuantity",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 82,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PricingUnit",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 82,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "PublisherName",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ResourceName",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ResourceType",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 622,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "ServiceSubcategory",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 12404,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "SkuMeter",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "SkuPriceDetails",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 10935,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "SkuPriceId",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 418,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "SubAccountId",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "SubAccountName",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        },
+        {
+          "name": "x_Discounts",
+          "classification": "unknown",
+          "present": true,
+          "missing_count": 0,
+          "invalid_count": 0,
+          "sentinel_count": 0,
+          "sentinel_definition": "none assessed",
+          "reason": "Column present in Parquet file but not in FOCUS_REQUIRED or FOCUS_OPTIONAL lists."
+        }
+      ],
+      "notes": [
+        "Dataset: AWS FOCUS 1.2 billing export (CALIBUR_FOCUS_12).",
+        "Parquet metadata: org.apache.spark.version present in file metadata.",
+        "Billing period: 2026-10-01 00:00:00+00:00 to 2026-11-01 00:00:00+00:00 (billing-period boundary timestamps, NOT billing-arrival timestamps).",
+        "BillingPeriodStart/End and ChargePeriodStart/End are period-boundary timestamps. The time this record first became available to a controller has NOT been recorded.",
+        "Tags: 0 rows with non-empty tag maps out of 12404. No CALIBUR reservation-id or team tags are present. Linkage between these billing records and CALIBUR admission decisions is NOT established.",
+        "InvoiceId: fully null in this delivery — no invoice number is available for deduplication.",
+        "One delivery snapshot only. Billing revisions have not been observed.",
+        "Currency: USD for all 12,200 rows.",
+        "ChargeClass: fully null — no adjustment/correction class values present in this delivery.",
+        "BilledCost sum ≈ 0 due to credit offset; this does not mean future costs will be zero."
+      ],
+      "dataset": "focus12",
+      "source_approved": true,
+      "schema_version": "FOCUS 1.2 (FocusVersion 1.2, SchemaId 1.0.0, schema_creation_date 2025-11-19T00:00:00Z)",
+      "unresolved_quality_issues": [
+        "AWS account-ID discrepancy in FOCUS delivery metadata",
+        "Delivery 1 has no manifest file",
+        "No verified row-level unique key for FOCUS billing records"
+      ]
+    }
+  ],
+  "research_gate": "AMBER",
+  "research_gate_reason": "Profiling alone does not establish provenance, billing finality, billing-arrival delays, request-to-resource linkage, or empirical performance.",
+  "source_approval_status": {
+    "alibaba_cluster_trace_v2017": {
+      "approved": false,
+      "approval_reason": "License applicability to the exact v2017 trace archive has not been independently confirmed.  The Alibaba clusterdata repository contains a CC BY 4.0 license file, but it is not yet established that this license covers the v2017 archive specifically.  Source remains UNAPPROVED for research use until that determination is made and recorded here.",
+      "schema_version": "trace_201708.md (official Alibaba trace documentation)",
+      "sha256_archive": "b7efe9dc9caa75352de41b9ac34b329602cde3414fd7cab87c1d21a9a9871d66",
+      "files": [
+        "data/raw/alibaba_trace_2017/alibaba-trace-2017/batch_instance.csv",
+        "data/raw/alibaba_trace_2017/alibaba-trace-2017/batch_task.csv",
+        "data/raw/alibaba_trace_2017/alibaba-trace-2017/container_event.csv",
+        "data/raw/alibaba_trace_2017/alibaba-trace-2017/container_usage.csv",
+        "data/raw/alibaba_trace_2017/alibaba-trace-2017/server_event.csv",
+        "data/raw/alibaba_trace_2017/alibaba-trace-2017/server_usage.csv"
+      ],
+      "blocking_items": [
+        "Verify and document the applicable license/terms for the v2017 trace archive."
+      ]
+    },
+    "aws_focus_1.2": {
+      "approved": true,
+      "approval_reason": "AWS FOCUS 1.2 billing export from the project AWS account.  FOCUS schema version 1.2 confirmed from CALIBUR_FOCUS_12-Manifest-FOCUS.json.  Both deliveries verified by SHA-256 against recorded manifest values.  Data-handling restrictions apply: raw files must not be committed to a public repository or shared outside the project team.",
+      "schema_version": "FOCUS 1.2 (FocusVersion 1.2, SchemaId 1.0.0, schema_creation_date 2025-11-19T00:00:00Z)",
+      "deliveries": {
+        "delivery_1": {
+          "path": "data/raw/focus12/CALIBUR_FOCUS_12-00001.snappy.parquet",
+          "sha256": "e829bfa81b344c07e7803d52bd7e9863eba2240e37cea4a701c2dc48f5220597",
+          "size_bytes": 111251,
+          "rows": 12200,
+          "delivery_timestamp": "2026-10-24T19:27:14.926Z"
+        },
+        "delivery_2": {
+          "path": "data/raw/focus12/delivery_2026-10-25/CALIBUR_FOCUS_12-00001.snappy.parquet",
+          "sha256": "df688f94a119d2cc92b0347dc86b7ee4b3ec383a58671de2ce216347f375378b",
+          "size_bytes": 105860,
+          "rows": 12404,
+          "delivery_timestamp": "2026-10-25T03:32:00.757Z",
+          "execution_id": "ddede1a2-e372-34a5-aa28-36cacf5a98ef"
+        }
+      },
+      "blocking_items": [
+        "S3 account-ID discrepancy: S3 delivery path uses account 582422215613; export ARN in the manifest reads account 582422215623.  These differ by one digit in the penultimate position.  The correct value has not been confirmed.  Do not silently correct either value."
+      ]
+    }
+  },
+  "blocked_analyses": [
+    {
+      "analysis": "Alibaba workload descriptive statistics",
+      "blocked_by": "Source unapproved: license applicability of CC BY 4.0 to the v2017 trace archive has not been independently confirmed.",
+      "source": "alibaba_cluster_trace_v2017"
+    },
+    {
+      "analysis": "Cross-dataset join: Alibaba records <-> FOCUS billing records",
+      "blocked_by": "No verified shared identifier between Alibaba cluster records and AWS FOCUS billing records has been established.  No linkage will be fabricated.",
+      "source": "alibaba_cluster_trace_v2017 + aws_focus_1.2"
+    },
+    {
+      "analysis": "Cross-dataset join: CALIBUR admission decisions <-> FOCUS billing records",
+      "blocked_by": "No verified shared identifier between CALIBUR admission records and FOCUS billing records has been established.  Tags field is fully empty in both deliveries; ResourceId is null for 606 of 12,200 rows.",
+      "source": "aws_focus_1.2"
+    },
+    {
+      "analysis": "Billing-record arrival delay measurement",
+      "blocked_by": "No billing-record arrival timestamp is present in the FOCUS 1.2 schema.  BillingPeriodStart/End and ChargePeriodStart/End are billing-period boundaries, not arrival times.  Arrival delay cannot be measured without a separate arrival timestamp.",
+      "source": "aws_focus_1.2"
+    },
+    {
+      "analysis": "Billing revision detection",
+      "blocked_by": "No verified row-level unique key has been established for FOCUS records.  InvoiceId is fully null.  Snapshot comparison used only descriptive grouping fields.  Two snapshots differing does not prove a billing revision.",
+      "source": "aws_focus_1.2"
+    },
+    {
+      "analysis": "CALIBUR budget-safety performance validation",
+      "blocked_by": "No empirical linkage between admission decisions and billing outcomes has been established.  Profiling alone does not validate real-world controller performance.",
+      "source": "aws_focus_1.2 + calibur_admissions"
+    }
+  ],
+  "unresolved_quality_issues": [
+    {
+      "issue": "AWS account-ID discrepancy in FOCUS delivery metadata",
+      "detail": "S3 delivery path uses account ID 582422215613.  Export ARN in CALIBUR_FOCUS_12-Manifest.json uses account ID 582422215623.  These differ by one digit (penultimate position: '1' vs '2').  The correct account ID has not been confirmed.  Neither value will be corrected or guessed until confirmed by the account owner.",
+      "source": "aws_focus_1.2",
+      "status": "UNRESOLVED — requires confirmation from the account owner"
+    },
+    {
+      "issue": "Alibaba dataset license applicability",
+      "detail": "The Alibaba clusterdata repository contains a CC BY 4.0 license file.  Whether that license applies specifically to the v2017 trace archive (alibaba-trace-2017.tar.gz) has not been independently confirmed.  The source remains unapproved for research use until this is established.",
+      "source": "alibaba_cluster_trace_v2017",
+      "status": "UNRESOLVED — requires independent license review"
+    },
+    {
+      "issue": "container_event.csv undocumented 9th column",
+      "detail": "The extracted container_event.csv contains 9 columns.  The authoritative schema (trace_201708.md, alibaba_v2017_schema.csv) documents only 8.  The 9th column is always blank in the v2017 archive.  Its semantics are unknown.  It is preserved as 'undocumented_field_9' in the loader schema without interpretation.",
+      "source": "alibaba_cluster_trace_v2017",
+      "status": "UNRESOLVED — semantics of 9th column not documented by source"
+    },
+    {
+      "issue": "Delivery 1 has no manifest file",
+      "detail": "No manifest file exists for FOCUS Delivery 1 (data/raw/focus12/CALIBUR_FOCUS_12-00001.snappy.parquet, 111,251 bytes).  Its provenance rests solely on the SHA-256 recorded in data_manifest.md.  The manifest files on disk (CALIBUR_FOCUS_12-Manifest.json and CALIBUR_FOCUS_12-Manifest-FOCUS.json) correspond to Delivery 2 only.",
+      "source": "aws_focus_1.2",
+      "status": "UNRESOLVED — no manifest for Delivery 1"
+    },
+    {
+      "issue": "No verified row-level unique key for FOCUS billing records",
+      "detail": "FOCUS 1.2 does not mandate a row-level stable ID field.  InvoiceId is fully null in both deliveries.  ResourceId is null for 606 of 12,200 rows in Delivery 1.  No substitute key has been invented.  Snapshot comparison used descriptive grouping only and must not be treated as row-level identity comparison.",
+      "source": "aws_focus_1.2",
+      "status": "UNRESOLVED — no unique row key established"
+    }
+  ],
+  "documented_transformations": [
+    {
+      "source": "aws_focus_1.2",
+      "field": "BillingPeriodStart, BillingPeriodEnd, ChargePeriodStart, ChargePeriodEnd",
+      "transform": "Parquet timestamp(ms, UTC) -> UTC ISO-8601 string via pandas Timestamp.tz_convert('UTC').isoformat()",
+      "reversible": "Yes — original value recoverable from ISO-8601 string",
+      "introduced_by": "focus_loader.load_parquet"
+    },
+    {
+      "source": "aws_focus_1.2",
+      "field": "BilledCost, EffectiveCost, ListCost (on explicit request only)",
+      "transform": "USD float -> micro-USD integer via Decimal half-even rounding (cost_to_micro())",
+      "reversible": "Approximately — rounding may lose sub-micro precision; sign preserved",
+      "introduced_by": "focus_loader.cost_to_micro"
+    },
+    {
+      "source": "alibaba_cluster_trace_v2017",
+      "field": "All integer columns",
+      "transform": "CSV string -> Python int via int(stripped); blank -> None",
+      "reversible": "Yes",
+      "introduced_by": "alibaba_loader.load_file (_coerce)"
+    },
+    {
+      "source": "alibaba_cluster_trace_v2017",
+      "field": "All float columns",
+      "transform": "CSV string -> Python float via float(stripped); blank -> None",
+      "reversible": "Yes (within float precision)",
+      "introduced_by": "alibaba_loader.load_file (_coerce)"
+    }
+  ]
+}

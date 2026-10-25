@@ -1,0 +1,104 @@
+{
+  "feasibility_gate": "AMBER",
+  "admission_records_available": false,
+  "infeasibility_reason": "No CALIBUR-managed admission records exist to join against FOCUS billing rows.  All 12 CloudTrail RunInstances events in October 2026 were initiated by root or AutoScaling for unrelated workloads.  DynamoDB contains no Spendctl reservation records.  Tags maps are empty in all three deliveries.  The end-to-end join (reservation_id \u2192 resource_id \u2192 FOCUS row) cannot be constructed without at least one human-approved CALIBUR admission.",
+  "deliveries": [
+    {
+      "label": "D1",
+      "relative_path": "data/raw/focus12/CALIBUR_FOCUS_12-00001.snappy.parquet",
+      "delivery_timestamp": "2026-10-24T19:27:14.926Z",
+      "execution_id": "19206226-e1be-320d-84a6-833b2f8a9b81",
+      "sha256": "e829bfa81b344c07e7803d52bd7e9863eba2240e37cea4a701c2dc48f5220597",
+      "sha256_verified": true,
+      "size_bytes": 111251,
+      "row_count": 12200,
+      "first_observed_utc": "2026-10-25T11:32:29.273257+00:00",
+      "s3_last_modified_utc": "2026-10-24T19:44:19+00:00",
+      "focus_version": "inferred:1.2",
+      "currency": "USD",
+      "missing_invoice_id_count": 12200,
+      "missing_resource_id_count": 606,
+      "empty_tags_count": 12200,
+      "notes": [
+        "BillingPeriodStart/End and ChargePeriodStart/End are billing-period boundary timestamps. They are NOT billing-record arrival times. No arrival time exists in the FOCUS 1.2 schema.",
+        "InvoiceId is fully null in known deliveries. No stable row-level unique key has been established. No key will be invented.",
+        "No linkage between these records and CALIBUR admission decisions or Alibaba workload records has been established.",
+        "Delivery: data/raw/focus12/CALIBUR_FOCUS_12-00001.snappy.parquet",
+        "SHA-256 verified: True",
+        "ResourceId is null for 606 of 12200 rows. Linkage via ResourceId alone is not possible for those rows."
+      ]
+    },
+    {
+      "label": "D2",
+      "relative_path": "data/raw/focus12/delivery_2026-10-25/CALIBUR_FOCUS_12-00001.snappy.parquet",
+      "delivery_timestamp": "2026-10-25T03:32:00.757Z",
+      "execution_id": "ddede1a2-e372-34a5-aa28-36cacf5a98ef",
+      "sha256": "df688f94a119d2cc92b0347dc86b7ee4b3ec383a58671de2ce216347f375378b",
+      "sha256_verified": true,
+      "size_bytes": 105860,
+      "row_count": 12404,
+      "first_observed_utc": "2026-10-25T11:32:29.273434+00:00",
+      "s3_last_modified_utc": "2026-10-25T03:44:00+00:00",
+      "focus_version": "inferred:1.2",
+      "currency": "USD",
+      "missing_invoice_id_count": 12404,
+      "missing_resource_id_count": 622,
+      "empty_tags_count": 12404,
+      "notes": [
+        "BillingPeriodStart/End and ChargePeriodStart/End are billing-period boundary timestamps. They are NOT billing-record arrival times. No arrival time exists in the FOCUS 1.2 schema.",
+        "InvoiceId is fully null in known deliveries. No stable row-level unique key has been established. No key will be invented.",
+        "No linkage between these records and CALIBUR admission decisions or Alibaba workload records has been established.",
+        "Delivery: data/raw/focus12/delivery_2026-10-25/CALIBUR_FOCUS_12-00001.snappy.parquet",
+        "SHA-256 verified: True",
+        "ResourceId is null for 622 of 12404 rows. Linkage via ResourceId alone is not possible for those rows."
+      ]
+    },
+    {
+      "label": "D3",
+      "relative_path": "data/raw/focus12/delivery_2026-10-25T11/CALIBUR_FOCUS_12-00001.snappy.parquet",
+      "delivery_timestamp": "2026-10-25T11:18:08.607Z",
+      "execution_id": "2719ee81-66bd-346a-93bc-ec5e99dc1747",
+      "sha256": "a6c184a5cae50b43d0a7d0e46c5987ff8852cd8aeb4799b4cfa7bb3e1e1c08f0",
+      "sha256_verified": true,
+      "size_bytes": 113134,
+      "row_count": 12579,
+      "first_observed_utc": "2026-10-25T11:32:29.273473+00:00",
+      "s3_last_modified_utc": "2026-10-25T11:25:02+00:00",
+      "focus_version": "inferred:1.2",
+      "currency": "USD",
+      "missing_invoice_id_count": 12579,
+      "missing_resource_id_count": 648,
+      "empty_tags_count": 12579,
+      "notes": [
+        "BillingPeriodStart/End and ChargePeriodStart/End are billing-period boundary timestamps. They are NOT billing-record arrival times. No arrival time exists in the FOCUS 1.2 schema.",
+        "InvoiceId is fully null in known deliveries. No stable row-level unique key has been established. No key will be invented.",
+        "No linkage between these records and CALIBUR admission decisions or Alibaba workload records has been established.",
+        "Delivery: data/raw/focus12/delivery_2026-10-25T11/CALIBUR_FOCUS_12-00001.snappy.parquet",
+        "SHA-256 verified: True",
+        "ResourceId is null for 648 of 12579 rows. Linkage via ResourceId alone is not possible for those rows."
+      ]
+    }
+  ],
+  "diffs": [],
+  "matched_rows": 0,
+  "unmatched_rows": 12579,
+  "ambiguous_rows": 0,
+  "total_focus_rows": 12579,
+  "evaluate_input": {
+    "reservations": [],
+    "billing_audits": []
+  },
+  "blocked_analyses": [
+    "evaluate.py empirical analysis: no FINAL-settled reservations with price_snapshot_id and billing_audit to join",
+    "billing revision detection: no verified row-level unique key (InvoiceId fully null)",
+    "billing arrival delay measurement: no arrival timestamp in FOCUS 1.2 schema; first_observed_utc records collector observation, not billing record availability",
+    "per-request cost attribution: Tags fully empty, no reservation-id tag active"
+  ],
+  "notes": [
+    "All FOCUS rows are unmatched because no CALIBUR admission records exist.",
+    "Unmatched rows are retained with explicit reason; they are not discarded.",
+    "first_observed_utc is the s3_evidence_collector observation timestamp, not the time a billing record first became available to CALIBUR.",
+    "S3 LastModified is recorded separately and must not be used as arrival time.",
+    "To enable the empirical evaluate.py run: export DynamoDB reservation and billing_audit records after at least one FINAL-settled CALIBUR admission."
+  ]
+}

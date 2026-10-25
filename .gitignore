@@ -14,3 +14,20 @@ research/results/*.png
 .cache/
 *.egg-info/
 cdk.out/
+
+# CALIBUR research data and local environment
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+.aws/
+**/credentials
+.DS_Store
+data/raw/
+data/interim/
+research/results/private/

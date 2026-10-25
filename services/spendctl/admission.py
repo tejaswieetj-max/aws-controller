@@ -20,7 +20,7 @@ from botocore.exceptions import (
     ReadTimeoutError,
 )
 
-from .calibration import MarginPolicies
+from .calibration import MarginPolicies, resource_class_for
 from .ledger import (
     AmbiguousLedgerOutcome,
     BudgetClosed,
@@ -99,16 +99,30 @@ class VerifiedIdentity:
             raise ValueError("verified identity must include a subject")
 
 
+_VALID_POLICIES = frozenset({"fixed", "rolling_quantile", "adaptive", "split_conformal"})
+
+
 @dataclass(frozen=True)
 class AdmissionService:
     ledger: object
     pricing: PricingProvider
     policies: MarginPolicies | None = None
     reserve_multiplier: Decimal = Decimal("1.10")
+    # active_policy controls which margin algorithm is actually applied to the
+    # reserve decision.  "fixed" is safe for cold-start or when fewer than 10
+    # samples are available; the policies.get() method falls back to FIXED
+    # automatically when below the sample gate.  Switching to "adaptive" or
+    # "rolling_quantile" requires policies to be set and the sample gate met.
+    active_policy: str = "fixed"
 
     def __post_init__(self):
         if self.reserve_multiplier <= 0:
             raise ValueError("reserve_multiplier must be positive")
+        if self.active_policy not in _VALID_POLICIES:
+            raise ValueError(
+                f"active_policy must be one of {sorted(_VALID_POLICIES)}, "
+                f"got {self.active_policy!r}"
+            )
 
     def estimate(self, payload: dict, identity: VerifiedIdentity) -> dict:
         request = _authorized_request(payload, identity)
@@ -198,18 +212,23 @@ class AdmissionService:
         except PricingError as error:
             raise AdmissionPricingUnavailable(str(error)) from error
 
-        multiplier = self._multiplier()
+        multiplier = self._multiplier(resource_class_for(request.instance_type))
         reserved_micro = multiply_ceil(estimate["total_micro"], multiplier)
-        policies = self.policies or MarginPolicies()
-        shadow_candidates = {
-            policy: str(Decimal(str(policies.get("ec2", policy))))
-            for policy in ("fixed", "rolling_quantile", "split_conformal", "adaptive")
-        }
+        policies = self.policies
+        shadow_candidates = (
+            {
+                policy: str(Decimal(str(policies.get(resource_class_for(request.instance_type), policy))))
+                for policy in ("fixed", "rolling_quantile", "split_conformal", "adaptive")
+            }
+            if policies is not None
+            else {}
+        )
         record = {
             "resource": {
                 "type": "ec2",
                 "instance_type": request.instance_type,
                 "ebs_gb": request.ebs_gb,
+                "resource_class": resource_class_for(request.instance_type),
             },
             "planned_hours": request.duration_hours,
             "estimate_micro": estimate["total_micro"],
@@ -311,10 +330,10 @@ class AdmissionService:
             idempotency_key=idempotency_key,
         )
 
-    def _multiplier(self) -> Decimal:
+    def _multiplier(self, resource_class: str = "ec2:t3") -> Decimal:
         configured = self.reserve_multiplier
         if self.policies is not None:
-            configured = Decimal(str(self.policies.get("ec2", "fixed")))
+            configured = Decimal(str(self.policies.get(resource_class, self.active_policy)))
         if not Decimal("1.0") <= configured <= Decimal("2.0"):
             raise ValueError("reserve multiplier must be between 1.0 and 2.0")
         return configured
