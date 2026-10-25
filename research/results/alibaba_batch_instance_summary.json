@@ -1,0 +1,35 @@
+{
+  "dataset": "Alibaba Cluster Trace 2017",
+  "source_file": "data/raw/alibaba_trace_2017/alibaba-trace-2017/batch_instance.csv",
+  "rows_processed": 16094656,
+  "status_counts": {
+    "Terminated": 13707867,
+    "Interrupted": 5827,
+    "Waiting": 1268982,
+    "Failed": 209168,
+    "Running": 835194,
+    "Ready": 67618
+  },
+  "missing_end_timestamp_rows": 0,
+  "valid_nonnegative_duration_rows": 15926610,
+  "invalid_or_negative_duration_rows": 168046,
+  "duration_seconds": {
+    "min": 0,
+    "median": 27,
+    "p90": 263,
+    "p95": 476,
+    "max": 31013
+  },
+  "missing_resource_values": {
+    "maximum_real_cpu_number": 2386677,
+    "average_real_cpu_number": 2386677,
+    "maximum_normalized_memory_usage": 14167556,
+    "average_normalized_memory_usage": 14166324
+  },
+  "limitations": [
+    "Duration is calculated only when both timestamps are present and valid.",
+    "Duration is not equivalent to billed runtime or cost.",
+    "Memory values are normalized and are not dollar values.",
+    "This dataset does not establish actual AWS billing outcomes."
+  ]
+}

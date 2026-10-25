@@ -1,0 +1,14 @@
+{
+  "dataset": "Alibaba Cluster Trace 2017",
+  "status_included": "Terminated",
+  "valid_records": 13707867,
+  "invalid_records": 0,
+  "duration_seconds": {
+    "min": 0,
+    "median": 33,
+    "p90": 295,
+    "p95": 523,
+    "max": 31013
+  },
+  "limitation": "Workload durations only; not AWS billing or dollar cost."
+}
