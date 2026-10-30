@@ -36,9 +36,9 @@ See research/data_feasibility.md and research/data_card.md for context.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from collections.abc import Iterator
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RAW_DIR = _REPO_ROOT / "data" / "raw" / "alibaba_trace_2017" / "alibaba-trace-2017"
@@ -241,28 +241,28 @@ def build_workload_stream(
         return durations[idx]
 
     blocked = [
-        "AWS cost estimation from Alibaba tasks: "
+        ("AWS cost estimation from Alibaba tasks: "
         "no verified mapping from trace cpu_requested/mem_requested_normalised "
-        "to AWS instance type or billing amount exists",
-        "Empirical evaluate.py input: no CALIBUR reservation IDs exist to join "
-        "with Alibaba task identifiers",
+        "to AWS instance type or billing amount exists"),
+        ("Empirical evaluate.py input: no CALIBUR reservation IDs exist to join "
+        "with Alibaba task identifiers"),
         "All workload analyses: source is UNAPPROVED pending license confirmation",
     ] if not _ALIBABA_APPROVED else [
-        "AWS cost estimation from Alibaba tasks: "
+        ("AWS cost estimation from Alibaba tasks: "
         "no verified mapping from trace cpu_requested/mem_requested_normalised "
-        "to AWS instance type or billing amount exists",
-        "Empirical evaluate.py input: no CALIBUR reservation IDs exist to join "
-        "with Alibaba task identifiers",
+        "to AWS instance type or billing amount exists"),
+        ("Empirical evaluate.py input: no CALIBUR reservation IDs exist to join "
+        "with Alibaba task identifiers"),
     ]
 
     notes = [
-        "duration_trace_seconds = end_timestamp - start_timestamp; "
+        ("duration_trace_seconds = end_timestamp - start_timestamp; "
         "values are in trace time units (seconds relative to an opaque epoch), "
-        "NOT wall-clock seconds.",
-        "mem_requested_normalised is in Alibaba trace normalised units; "
-        "NOT bytes, GB, or any AWS memory unit.",
-        "cpu_requested is an integer CPU count in the trace; "
-        "NOT an AWS vCPU count or instance-type specification.",
+        "NOT wall-clock seconds."),
+        ("mem_requested_normalised is in Alibaba trace normalised units; "
+        "NOT bytes, GB, or any AWS memory unit."),
+        ("cpu_requested is an integer CPU count in the trace; "
+        "NOT an AWS vCPU count or instance-type specification."),
         f"Approval gate: {'UNAPPROVED' if not _ALIBABA_APPROVED else 'APPROVED_ASSERTED'}",
         f"Rows with both timestamps: {rows_with_duration}/{total_rows}",
     ]

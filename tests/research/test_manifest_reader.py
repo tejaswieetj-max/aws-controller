@@ -20,17 +20,16 @@ if str(RESEARCH_DIR) not in sys.path:
 
 from ingestion.manifest_reader import (
     APPROVED_MANIFESTS,
-    BcmDeliveryManifest,
-    ColumnDefinition,
     FocusSchemaManifest,
     ManifestChecksumMismatch,
     ManifestNotApproved,
     ManifestParseError,
     read_bcm_delivery_manifest,
     read_focus_schema_manifest,
+)
+from ingestion.manifest_reader import (
     provenance as manifest_provenance,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures helpers
@@ -123,7 +122,7 @@ class TestManifestApproval:
 class TestFocusSchemaManifest:
     def test_parses_focus_version(self, tmp_path):
         p = tmp_path / "m.json"
-        sha = _write_focus_manifest(p, focus_version="1.2")
+        _write_focus_manifest(p, focus_version="1.2")
         result = read_focus_schema_manifest(p, allow_unlisted=True)
         assert result.focus_version == "1.2"
 

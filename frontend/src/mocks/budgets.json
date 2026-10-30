@@ -1,0 +1,5 @@
+[
+  {"team":"alpha-development","budget_micro":100000000,"spent_micro":27000000,"reserved_micro":18000000,"available_micro":55000000,"period":"2026-10","currency":"USD","observed_at":"2026-10-26T09:00:00Z","provenance":"synthetic_frontend_fixture"},
+  {"team":"platform-production","budget_micro":250000000,"spent_micro":128000000,"reserved_micro":42000000,"available_micro":80000000,"period":"2026-10","currency":"USD","observed_at":"2026-10-26T09:00:00Z","provenance":"synthetic_frontend_fixture"},
+  {"team":"data-development","budget_micro":80000000,"spent_micro":14000000,"reserved_micro":6000000,"available_micro":60000000,"period":"2026-10","currency":"USD","observed_at":"2026-10-26T09:00:00Z","provenance":"synthetic_frontend_fixture"}
+]

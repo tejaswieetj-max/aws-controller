@@ -10,16 +10,21 @@ Financial fields remain integer micro-USD. Error, MAE, RMSE, MAPE, bias, ratio, 
 
 Candidate margins default to 1.00, 1.05, **1.10**, 1.15, 1.25 and 1.50. Reserves use the production upward integer rounding rule. These are research recommendations only and cannot change production admission. A chronological last-20% holdout is reported only with at least 20 observations across at least two billing periods; otherwise output is explicitly exploratory. The holdout split's representativeness is not guaranteed.
 
-## Reproducible synthetic evaluations
+## Accepted research command (real data only)
 
-`research/run.py --config research/config.json` uses the configured fixed seed and emits raw synthetic requests, policy summaries and an SVG plot. It compares fixed 1.10, rolling empirical quantile, frozen split calibration and adaptive conformal-style calibration. It now also emits CSV/JSON results for a local schedule model comparing atomic reservations with an isolated naive baseline at configured concurrency levels, plus adaptive feedback-lag sensitivity for 0/1/7/30-request lags. Every file is labeled synthetic; latency and cleanup/attribution values requiring AWS instrumentation remain null or explicitly unavailable. Local schedule results do not prove DynamoDB contention or timing.
+`python -m research.replay.run --protocol research/protocol.md --manifest research/data_manifest.md` is the accepted research entry point. It validates provenance and event-time ordering, refuses to substitute synthetic data, and writes a truthful data-gap report when linked real observations are absent. See [research/README.md](../research/README.md).
+
+## Quarantined synthetic demonstration
+
+`research/run.py` is **SYNTHETIC-ONLY / NOT EVIDENCE**. It uses a fixed seed and emits raw synthetic requests, policy summaries and an SVG plot into `research/results/synthetic/`. It compares fixed 1.10, rolling empirical quantile, frozen split calibration and adaptive conformal-style calibration, plus a local schedule model and feedback-lag sensitivity. These artifacts are retained only for software reproducibility. Latency and cleanup/attribution values requiring AWS instrumentation remain null. Local schedule results do not prove DynamoDB contention or timing, and none of these files may be cited as empirical CALIBUR evidence.
 
 The adaptive calibration rule and gamma are documented in `services/spendctl/calibration.py`; deterministic ordering and deduplication make processing delayed settlements reproducible. The adaptive heuristic makes no unconditional coverage claim. Split conformal's finite-sample coverage claim requires exchangeability, a prespecified split/quantile and representative future data; those assumptions are not established here.
 
 ## Commands
 
 ```sh
-make research
+make research                 # strict real-data replay; exits nonzero on a data gap
+make research-synthetic       # quarantined synthetic demonstration; not evidence
 PYTHONPATH=services .venv/bin/python research/evaluate.py \
   --input /path/to/operator-export.json --provenance aws_export \
   --output /path/to/report.json --experiment

@@ -37,6 +37,7 @@ api = ApiStack(
     data_stack=data,
     state_machine_arn=orchestration.state_machine_arn,
     lifecycle_reaper_arn=lifecycle.reaper.function_arn,
+    event_bus=lifecycle.event_bus,
     env=env,
 )
 billing = BillingStack(app, "BillingStack", data_stack=data, event_bus=lifecycle.event_bus, env=env)

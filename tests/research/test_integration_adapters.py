@@ -48,9 +48,9 @@ def _write_csv(path: Path, rows: list[list[str]]) -> None:
 
 def _make_focus_parquet(path: Path, rows: list[dict]) -> str:
     """Write a minimal FOCUS-shaped Parquet fixture. Returns SHA-256."""
+    import pandas as pd
     import pyarrow as pa
     import pyarrow.parquet as pq
-    import pandas as pd
 
     schema = pa.schema([
         ("BilledCost",           pa.float64()),
@@ -163,8 +163,8 @@ class TestFocusBillingAdapterStructure:
         return obs_file
 
     def test_load_s3_observations_parses_jsonl(self, tmp_path):
-        from ingestion.focus_billing_adapter import _load_s3_observations
         import ingestion.focus_billing_adapter as fba
+        from ingestion.focus_billing_adapter import _load_s3_observations
         obs_file = self._make_obs_jsonl(tmp_path, "exec-abc", "2026-10-25")
         # Monkeypatch the module-level path
         orig = fba._S3_OBS_FILE
@@ -329,7 +329,7 @@ class TestFocusBillingAdapterStructure:
 
 class TestAlibabaWorkloadAdapter:
     def test_unapproved_raises_without_flag(self, tmp_path):
-        from ingestion.alibaba_workload_adapter import iter_observations, AlibabaSourceUnapproved
+        from ingestion.alibaba_workload_adapter import AlibabaSourceUnapproved, iter_observations
         _write_csv(tmp_path / "batch_task.csv", [_BATCH_TASK_ROW])
         with pytest.raises(AlibabaSourceUnapproved):
             list(iter_observations(raw_dir=tmp_path))
@@ -349,8 +349,8 @@ class TestAlibabaWorkloadAdapter:
             al.APPROVED_FILES["batch_task.csv"] = orig["batch_task.csv"]
 
     def test_observation_source_is_alibaba(self, tmp_path):
-        from ingestion.alibaba_workload_adapter import iter_observations
         from ingestion import alibaba_loader as al
+        from ingestion.alibaba_workload_adapter import iter_observations
         _write_csv(tmp_path / "batch_task.csv", [_BATCH_TASK_ROW])
         sha = _sha256(tmp_path / "batch_task.csv")
         orig = al.APPROVED_FILES["batch_task.csv"]
@@ -363,8 +363,8 @@ class TestAlibabaWorkloadAdapter:
             al.APPROVED_FILES["batch_task.csv"] = orig
 
     def test_duration_computed_from_timestamps(self, tmp_path):
-        from ingestion.alibaba_workload_adapter import iter_observations
         from ingestion import alibaba_loader as al
+        from ingestion.alibaba_workload_adapter import iter_observations
         # task_create_time=100, task_end_time=250 → duration=150
         row = ["100", "250", "3", "4", "5", "Terminated", "50", "0.01"]
         _write_csv(tmp_path / "batch_task.csv", [row])
@@ -380,8 +380,8 @@ class TestAlibabaWorkloadAdapter:
             al.APPROVED_FILES["batch_task.csv"] = orig
 
     def test_missing_timestamps_give_none_duration(self, tmp_path):
-        from ingestion.alibaba_workload_adapter import iter_observations
         from ingestion import alibaba_loader as al
+        from ingestion.alibaba_workload_adapter import iter_observations
         row = ["", "250", "3", "4", "5", "Terminated", "50", "0.01"]
         _write_csv(tmp_path / "batch_task.csv", [row])
         sha = _sha256(tmp_path / "batch_task.csv")
@@ -395,8 +395,8 @@ class TestAlibabaWorkloadAdapter:
             al.APPROVED_FILES["batch_task.csv"] = orig
 
     def test_missing_fields_list_populated(self, tmp_path):
-        from ingestion.alibaba_workload_adapter import iter_observations
         from ingestion import alibaba_loader as al
+        from ingestion.alibaba_workload_adapter import iter_observations
         _write_csv(tmp_path / "batch_task.csv", [_BATCH_TASK_ROW_MISSING])
         sha = _sha256(tmp_path / "batch_task.csv")
         orig = al.APPROVED_FILES["batch_task.csv"]
@@ -408,8 +408,8 @@ class TestAlibabaWorkloadAdapter:
             al.APPROVED_FILES["batch_task.csv"] = orig
 
     def test_no_aws_cost_field_on_observation(self, tmp_path):
-        from ingestion.alibaba_workload_adapter import iter_observations
         from ingestion import alibaba_loader as al
+        from ingestion.alibaba_workload_adapter import iter_observations
         _write_csv(tmp_path / "batch_task.csv", [_BATCH_TASK_ROW])
         sha = _sha256(tmp_path / "batch_task.csv")
         orig = al.APPROVED_FILES["batch_task.csv"]
@@ -425,8 +425,9 @@ class TestAlibabaWorkloadAdapter:
             al.APPROVED_FILES["batch_task.csv"] = orig
 
     def test_duration_is_trace_units_not_wall_clock(self, tmp_path):
-        from ingestion.alibaba_workload_adapter import WorkloadObservation
         import dataclasses
+
+        from ingestion.alibaba_workload_adapter import WorkloadObservation
         # duration_trace_seconds field name signals trace units, not wall clock
         field_names = {f.name for f in dataclasses.fields(WorkloadObservation)}
         assert "duration_trace_seconds" in field_names, (
@@ -434,14 +435,17 @@ class TestAlibabaWorkloadAdapter:
         )
 
     def test_workload_stream_unapproved_raises(self, tmp_path):
-        from ingestion.alibaba_workload_adapter import build_workload_stream, AlibabaSourceUnapproved
+        from ingestion.alibaba_workload_adapter import (
+            AlibabaSourceUnapproved,
+            build_workload_stream,
+        )
         _write_csv(tmp_path / "batch_task.csv", [_BATCH_TASK_ROW])
         with pytest.raises(AlibabaSourceUnapproved):
             build_workload_stream(raw_dir=tmp_path)
 
     def test_workload_stream_summary_counts(self, tmp_path):
-        from ingestion.alibaba_workload_adapter import build_workload_stream
         from ingestion import alibaba_loader as al
+        from ingestion.alibaba_workload_adapter import build_workload_stream
         rows = [
             ["100", "250", "3", "4", "5", "Terminated", "50", "0.01"],
             ["",    "250", "3", "4", "5", "Waiting",    "50", "0.01"],
@@ -463,8 +467,8 @@ class TestAlibabaWorkloadAdapter:
             al.APPROVED_FILES["batch_task.csv"] = orig
 
     def test_workload_stream_does_not_modify_file(self, tmp_path):
-        from ingestion.alibaba_workload_adapter import build_workload_stream
         from ingestion import alibaba_loader as al
+        from ingestion.alibaba_workload_adapter import build_workload_stream
         _write_csv(tmp_path / "batch_task.csv", [_BATCH_TASK_ROW])
         sha = _sha256(tmp_path / "batch_task.csv")
         orig = al.APPROVED_FILES["batch_task.csv"]
@@ -610,8 +614,9 @@ class TestAdapterFixtureIsolation:
         """WorkloadObservation must not have the fields evaluate.py requires
         for its reservations array — no accidental mixing of Alibaba data
         into the empirical billing pipeline."""
-        from ingestion.alibaba_workload_adapter import WorkloadObservation
         import dataclasses
+
+        from ingestion.alibaba_workload_adapter import WorkloadObservation
         field_names = {f.name for f in dataclasses.fields(WorkloadObservation)}
         # evaluate.py reservation fields that must NOT be on a WorkloadObservation
         forbidden = {"reserved_micro", "compute_micro", "storage_micro",

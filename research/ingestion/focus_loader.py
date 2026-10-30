@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -99,7 +99,7 @@ PERIOD_TIMESTAMP_COLUMNS: frozenset[str] = frozenset({
     "ChargePeriodEnd",
 })
 
-MICRO_USD = Decimal("1000000")
+MICRO_USD = Decimal(1000000)
 
 
 # ---------------------------------------------------------------------------
@@ -192,8 +192,8 @@ def _ts_to_iso(value: Any) -> str | None:
     # datetime
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc).isoformat()
-        return value.astimezone(timezone.utc).isoformat()
+            return value.replace(tzinfo=UTC).isoformat()
+        return value.astimezone(UTC).isoformat()
     return str(value)
 
 
@@ -211,7 +211,7 @@ def cost_to_micro(usd_value: float | None) -> int | None:
         return None
     if not d.is_finite():
         return None
-    return int((d * MICRO_USD).quantize(Decimal("1"), rounding=ROUND_HALF_EVEN))
+    return int((d * MICRO_USD).quantize(Decimal(1), rounding=ROUND_HALF_EVEN))
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +248,6 @@ def load_parquet(
     """
     try:
         import pyarrow.parquet as pq
-        import pyarrow as pa
     except ImportError as exc:
         raise ImportError("pyarrow is required to load FOCUS Parquet files") from exc
 
@@ -346,13 +345,13 @@ def load_parquet(
     currency = "USD" if currencies == {"USD"} else (next(iter(currencies)) if len(currencies) == 1 else None)
 
     notes = [
-        "BillingPeriodStart/End and ChargePeriodStart/End are billing-period boundary "
+        ("BillingPeriodStart/End and ChargePeriodStart/End are billing-period boundary "
         "timestamps. They are NOT billing-record arrival times. No arrival time exists "
-        "in the FOCUS 1.2 schema.",
-        "InvoiceId is fully null in known deliveries. No stable row-level unique key "
-        "has been established. No key will be invented.",
-        "No linkage between these records and CALIBUR admission decisions or Alibaba "
-        "workload records has been established.",
+        "in the FOCUS 1.2 schema."),
+        ("InvoiceId is fully null in known deliveries. No stable row-level unique key "
+        "has been established. No key will be invented."),
+        ("No linkage between these records and CALIBUR admission decisions or Alibaba "
+        "workload records has been established."),
         f"Delivery: {rel_str}",
         f"SHA-256 verified: {sha256_verified}",
     ]

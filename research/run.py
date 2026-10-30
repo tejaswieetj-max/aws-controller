@@ -1,4 +1,13 @@
-"""Reproducible synthetic policy evaluation; contains no AWS billing records."""
+"""SYNTHETIC-ONLY legacy policy evaluation.  NOT EMPIRICAL EVIDENCE.
+
+This script uses a fixed pseudo-random seed to exercise the margin policies.
+It contains no AWS billing records, no real requests, no real admissions, and no
+real feedback delays.  It is retained only so the earlier software demonstration
+can be reproduced.  It must never be used to support a research claim.
+
+Outputs are restricted to a directory named ``synthetic`` so that they cannot be
+mistaken for the empirical replay outputs under ``research/results/``.
+"""
 
 import argparse
 import csv
@@ -24,6 +33,11 @@ def main():
     _validate_config(cfg)
     rng = random.Random(cfg["seed"])
     out = Path(cfg["output_dir"])
+    if out.name != "synthetic":
+        raise SystemExit(
+            "refusing to write synthetic outputs outside a directory named 'synthetic'; "
+            f"configured output_dir is {out}"
+        )
     out.mkdir(parents=True, exist_ok=True)
     policies = ["fixed_1.10", "rolling_quantile", "split_conformal", "adaptive"]
     records = []

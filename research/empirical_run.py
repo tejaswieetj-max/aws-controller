@@ -55,7 +55,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 def _load_focus_feasibility(*, skip_diff: bool = False) -> dict:
     """Load all FOCUS deliveries and return FeasibilityResult as a dict."""
-    from ingestion.focus_billing_adapter import build_feasibility_result, feasibility_to_json
+    from ingestion.focus_billing_adapter import build_feasibility_result
     result = build_feasibility_result(skip_diff=skip_diff)
     return result
 
@@ -173,16 +173,17 @@ def _load_alibaba_stream() -> dict | None:
             "reason": str(exc),
             "notes": [
                 "Alibaba source is UNAPPROVED pending independent license confirmation.",
-                "Set _ALIBABA_APPROVED = True in alibaba_workload_adapter.py after "
-                "independently verifying that CC BY 4.0 applies to the v2017 trace.",
+                ("Set _ALIBABA_APPROVED = True in alibaba_workload_adapter.py after "
+                "independently verifying that CC BY 4.0 applies to the v2017 trace."),
             ],
         }
 
 
 def _run_evaluate(evaluate_input: dict) -> dict:
     """Run evaluate.build_dataset() and return the full result dict."""
-    import evaluate as evaluate_mod
     from decimal import Decimal
+
+    import evaluate as evaluate_mod
 
     dataset = evaluate_mod.build_dataset(evaluate_input, provenance="aws_export")
     observations = [
@@ -416,8 +417,8 @@ def main() -> None:
                 "No EC2 resource IDs are linked to any CALIBUR reservation.",
                 "No ReservationSettled events have been produced.",
                 "No billing rows are tagged with reservation-id (cost-allocation tags not activated).",
-                "The end-to-end join (reservation_id → resource_id → FOCUS row) "
-                "cannot be constructed without at least one human-approved CALIBUR admission.",
+                ("The end-to-end join (reservation_id → resource_id → FOCUS row) "
+                "cannot be constructed without at least one human-approved CALIBUR admission."),
             ],
             "next_action": (
                 "Deploy Spendctl DataStack to create DynamoDB tables, "

@@ -28,7 +28,7 @@ This module does NOT:
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -93,22 +93,22 @@ def translate(export_path: Path | str) -> TranslationResult:
         raise ValueError(f"Invalid JSON in {path}: {exc}") from exc
 
     if not isinstance(export, dict):
-        raise ValueError("Export must be a JSON object")
+        raise TypeError("Export must be a JSON object")
 
     reservations = export.get("reservations", [])
     billing_audits = export.get("billing_audits", [])
     if not isinstance(reservations, list) or not isinstance(billing_audits, list):
-        raise ValueError("reservations and billing_audits must be arrays")
+        raise TypeError("reservations and billing_audits must be arrays")
 
     warnings: list[str] = []
     notes = [
         "This export was read from a local file; DynamoDB was not queried.",
         "Records are passed through to evaluate.py without modification.",
-        "evaluate.py will report exclusions for any records that fail its "
+        ("evaluate.py will report exclusions for any records that fail its "
         "validation rules (missing price_snapshot_id, non-FINAL settlement_stage, "
-        "unsupported resource configuration, etc.).",
-        "Provenance label 'aws_export' is an operator assertion; verify against "
-        "actual AWS DynamoDB before treating results as empirically validated.",
+        "unsupported resource configuration, etc.)."),
+        ("Provenance label 'aws_export' is an operator assertion; verify against "
+        "actual AWS DynamoDB before treating results as empirically validated."),
     ]
 
     # Check for obvious structural gaps and warn — don't silently drop fields.

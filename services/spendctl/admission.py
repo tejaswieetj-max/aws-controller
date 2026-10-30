@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -19,6 +20,17 @@ from botocore.exceptions import (
     HTTPClientError,
     ReadTimeoutError,
 )
+
+from calibur_engine import (
+    BudgetState,
+    CalibrationSnapshot,
+    EstimateSnapshot,
+    RequestFeatures,
+    RiskPolicyConfig,
+    SourceRef,
+    compute_reservation,
+)
+from calibur_engine.models import Decision, ReservationProposal
 
 from .calibration import MarginPolicies, resource_class_for
 from .ledger import (
@@ -63,6 +75,18 @@ class AdmissionConflict(AdmissionError):
 class AdmissionInsufficientBudget(AdmissionError):
     """The team's open budget cannot cover the required reserve."""
 
+    def __init__(self, message: str, proposal: ReservationProposal | None = None):
+        self.proposal = proposal
+        super().__init__(message)
+
+
+class AdmissionPolicyDenied(AdmissionError):
+    """CALIBUR rejected a decision-time evidence bundle without a ledger write."""
+
+    def __init__(self, proposal: ReservationProposal):
+        self.proposal = proposal
+        super().__init__("CALIBUR policy denied admission: " + ", ".join(proposal.reason_codes))
+
 
 class AdmissionRetryableFailure(AdmissionError):
     """A known non-committed ledger failure that may be retried with the same key."""
@@ -102,6 +126,34 @@ class VerifiedIdentity:
 _VALID_POLICIES = frozenset({"fixed", "rolling_quantile", "adaptive", "split_conformal"})
 
 
+def resolve_active_policy(raw: str | None) -> str:
+    """Return a valid margin policy name, falling back to ``fixed``.
+
+    A typo in ``CALIBUR_ACTIVE_POLICY`` must not take down admission.  The
+    fallback is logged with a stable outcome so the misconfiguration is still
+    visible in CloudWatch.
+    """
+    if raw is None or raw.strip() == "":
+        return "fixed"
+    policy = raw.strip().lower()
+    if policy in _VALID_POLICIES:
+        return policy
+    structured_log(
+        "M4",
+        "margin_policy",
+        "fallback",
+        requested=raw[:64],
+        active="fixed",
+        error_category="unknown_active_policy",
+    )
+    return "fixed"
+
+
+def active_policy_from_env() -> str:
+    """Resolve ``CALIBUR_ACTIVE_POLICY``; unset keeps the static policy."""
+    return resolve_active_policy(os.environ.get("CALIBUR_ACTIVE_POLICY"))
+
+
 @dataclass(frozen=True)
 class AdmissionService:
     ledger: object
@@ -109,10 +161,10 @@ class AdmissionService:
     policies: MarginPolicies | None = None
     reserve_multiplier: Decimal = Decimal("1.10")
     # active_policy controls which margin algorithm is actually applied to the
-    # reserve decision.  "fixed" is safe for cold-start or when fewer than 10
-    # samples are available; the policies.get() method falls back to FIXED
-    # automatically when below the sample gate.  Switching to "adaptive" or
-    # "rolling_quantile" requires policies to be set and the sample gate met.
+    # reserve decision.  "fixed" remains the code default; the dev stack sets
+    # CALIBUR_ACTIVE_POLICY=rolling_quantile.  Below the sample gate
+    # (CALIBUR_MIN_SAMPLES, default 2) MarginPolicies.get() falls back to the
+    # static 1.10 floor.
     active_policy: str = "fixed"
 
     def __post_init__(self):
@@ -142,6 +194,7 @@ class AdmissionService:
         """Reserve budget atomically. This method never starts provisioning."""
         started = time.perf_counter()
         result = "error"
+        request_id = _request_id(identity.team, identity.subject, idempotency_key)
         try:
             outcome = self._admit(
                 payload,
@@ -154,8 +207,27 @@ class AdmissionService:
         except AdmissionOutcomeUnknown:
             result = "pending_unknown"
             raise
-        except AdmissionInsufficientBudget:
+        except AdmissionInsufficientBudget as error:
             result = "insufficient_budget"
+            self._record_denial(
+                request_id,
+                identity,
+                period,
+                idempotency_key,
+                "INSUFFICIENT_BUDGET",
+                evidence=error.proposal.to_dict() if error.proposal else None,
+            )
+            raise
+        except AdmissionPolicyDenied as error:
+            result = "policy_denied"
+            self._record_denial(
+                request_id,
+                identity,
+                period,
+                idempotency_key,
+                "CALIBUR_POLICY_DENIED",
+                evidence=error.proposal.to_dict(),
+            )
             raise
         except AdmissionConflict:
             result = "conflict"
@@ -168,6 +240,10 @@ class AdmissionService:
             raise
         except (TypeError, ValueError):
             result = "invalid_request"
+            raise
+        except Exception as error:
+            result = "unexpected_error"
+            structured_log("M5", "admission", "error", error_category="unexpected", error=type(error).__name__, error_message=str(error)[:200], request_id=request_id)
             raise
         finally:
             _emit_admission_emf(result, (time.perf_counter() - started) * 1000)
@@ -183,6 +259,7 @@ class AdmissionService:
         request = _authorized_request(payload, identity)
         _validate_admission_metadata(period, idempotency_key)
         reservation_id = _reservation_id(identity.team, identity.subject, idempotency_key)
+        request_id = _request_id(identity.team, identity.subject, idempotency_key)
 
         # A durable row wins over current pricing. This makes a replay stable even
         # if the provider's live price changes after the first successful reserve.
@@ -212,8 +289,27 @@ class AdmissionService:
         except PricingError as error:
             raise AdmissionPricingUnavailable(str(error)) from error
 
+        decision_at = datetime.now(UTC)
         multiplier = self._multiplier(resource_class_for(request.instance_type))
-        reserved_micro = multiply_ceil(estimate["total_micro"], multiplier)
+        proposal = self._calibur_proposal(
+            request=request,
+            request_id=request_id,
+            budget=budget,
+            estimate=estimate,
+            decision_at=decision_at,
+            multiplier=multiplier,
+        )
+        if proposal.decision is Decision.DENY:
+            if "BUDGET_INSUFFICIENT" in proposal.reason_codes:
+                raise AdmissionInsufficientBudget(
+                    "team budget cannot cover CALIBUR's required reservation",
+                    proposal,
+                )
+            raise AdmissionPolicyDenied(proposal)
+        # The engine's proposal is the requested hold.  The ledger transaction
+        # below independently rechecks availability, so a concurrent admission
+        # cannot turn this decision-time snapshot into an overspend.
+        reserved_micro = proposal.reservation_amount_micro
         policies = self.policies
         shadow_candidates = (
             {
@@ -224,6 +320,12 @@ class AdmissionService:
             else {}
         )
         record = {
+            "request_id": request_id,
+            "decision_at": proposal.decision_at.isoformat().replace("+00:00", "Z"),
+            "policy_version": proposal.policy_version,
+            "margin_policy": self.active_policy,
+            "calibur_proposal": proposal.to_dict(),
+            "currency": "USD",
             "resource": {
                 "type": "ec2",
                 "instance_type": request.instance_type,
@@ -253,6 +355,7 @@ class AdmissionService:
                 requester=identity.subject,
                 reserved_micro=reserved_micro,
                 record=record,
+                decision_budget_snapshot=budget,
             )
         except (InsufficientBudget, BudgetNotFound) as error:
             raise AdmissionInsufficientBudget(str(error)) from error
@@ -306,6 +409,7 @@ class AdmissionService:
             "state": "ADMITTED",
             "http_status": 200 if outcome.get("replayed") else 202,
             "reservation_id": reservation["reservation_id"],
+            "request_id": reservation["request_id"],
             "reserved_micro": reservation["reserved_micro"],
             "estimate_micro": reservation["estimate_micro"],
             "estimate": estimate,
@@ -313,6 +417,29 @@ class AdmissionService:
             "replayed": bool(outcome.get("replayed")),
             "provisioning_started": False,
         }
+
+    def _record_denial(
+        self,
+        request_id: str,
+        identity: VerifiedIdentity,
+        period: str,
+        idempotency_key: str,
+        reason: str,
+        evidence: dict | None = None,
+    ) -> None:
+        """Write evidence for a final rejection without altering API semantics."""
+        if not _PERIOD_RE.fullmatch(period) or not idempotency_key:
+            return
+        self.ledger.record_admission_denial(
+            request_id=request_id,
+            team=identity.team,
+            requester=identity.subject,
+            period=period,
+            idempotency_key=idempotency_key,
+            reason=reason,
+            decision_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            evidence=evidence,
+        )
 
     def reconcile(
         self,
@@ -337,6 +464,114 @@ class AdmissionService:
         if not Decimal("1.0") <= configured <= Decimal("2.0"):
             raise ValueError("reserve multiplier must be between 1.0 and 2.0")
         return configured
+
+    def _calibur_proposal(
+        self,
+        *,
+        request: Request,
+        request_id: str,
+        budget: dict,
+        estimate: dict,
+        decision_at: datetime,
+        multiplier: Decimal,
+    ) -> ReservationProposal:
+        """Build a decision-time-only CALIBUR input bundle from authoritative inputs."""
+        observed = decision_at
+        resource_class = resource_class_for(request.instance_type)
+        request_ref = SourceRef(request_id, observed, "spendctl/admission", "admission_request")
+        budget_ref = SourceRef(
+            f"budget:{request.team}:{budget.get('period', '')}:{budget.get('version', '')}",
+            observed,
+            "spendctl/ledger",
+            "consistent_budget_snapshot",
+        )
+        estimate_ref = SourceRef(
+            str(estimate["price_snapshot_id"]),
+            observed,
+            "spendctl/pricing",
+            "decision_time_price_snapshot",
+        )
+        policy_ref = SourceRef(
+            f"margin:{self.active_policy}:{resource_class}",
+            observed,
+            "spendctl/calibration",
+            "persisted_margin_policy",
+        )
+        point = int(estimate["total_micro"])
+        upper = multiply_ceil(point, multiplier)
+        calibration = self._calibration_snapshot(
+            resource_class=resource_class,
+            point_micro=point,
+            upper_micro=upper,
+            observed=observed,
+            source=policy_ref,
+        )
+        return compute_reservation(
+            RequestFeatures(
+                request_id=request_id,
+                team=request.team,
+                requested_at=observed,
+                instance_type=request.instance_type,
+                duration_hours=Decimal(request.duration_hours),
+                ebs_gb=request.ebs_gb,
+                region=str(estimate["region"]),
+                source=request_ref,
+            ),
+            EstimateSnapshot(
+                point_cost_micro=point,
+                upper_cost_micro=upper,
+                method=f"pricing/{estimate['source']}",
+                as_of=observed,
+                source_refs=(estimate_ref, policy_ref),
+                limitations=("Price estimate is derived, not provider billing.",),
+            ),
+            BudgetState(
+                team=request.team,
+                period=str(budget["period"]),
+                cap_micro=int(budget["budget_micro"]),
+                available_micro=int(budget["available_micro"]),
+                reserved_micro=int(budget["reserved_micro"]),
+                spent_micro=int(budget["spent_micro"]),
+                as_of=observed,
+                source=budget_ref,
+                status=str(budget.get("status", "OPEN")),
+            ),
+            decision_at=decision_at,
+            calibration=calibration,
+            config=RiskPolicyConfig(static_margin=multiplier),
+        )
+
+    def _calibration_snapshot(
+        self,
+        *,
+        resource_class: str,
+        point_micro: int,
+        upper_micro: int,
+        observed: datetime,
+        source: SourceRef,
+    ) -> CalibrationSnapshot | None:
+        """Freeze only final-label policy state available at the decision.
+
+        Cold start deliberately returns ``None``.  The risk engine then emits
+        ``NO_CALIBRATION`` and keeps the configured static policy visible in
+        the durable proposal rather than pretending an empirical calibration
+        exists.  Provisional telemetry is never converted to a cost label here.
+        """
+        if self.policies is None:
+            return None
+        samples = self.policies.samples.get(resource_class, [])
+        if not samples:
+            return None
+        adaptive = self.policies.adaptive.get(resource_class)
+        alpha = Decimal(str(adaptive.alpha if adaptive is not None else self.policies.target_alpha))
+        return CalibrationSnapshot(
+            upper_cost_micro=upper_micro,
+            alpha=alpha,
+            score_count=len(samples),
+            as_of=observed,
+            source_refs=(source,),
+            state_version=f"margin/{self.active_policy}/{resource_class}/samples={len(samples)}",
+        )
 
 
 def _authorized_request(payload: dict, identity: VerifiedIdentity) -> Request:
@@ -372,6 +607,12 @@ def _reservation_id(team: str, subject: str, key: str) -> str:
     material = json.dumps([team, subject, key], ensure_ascii=False, separators=(",", ":"))
     digest = hashlib.sha256(material.encode()).hexdigest()
     return f"rsv_{digest[:40]}"
+
+
+def _request_id(team: str, subject: str, key: str) -> str:
+    """Stable admission-attempt identity, including retries of the same key."""
+    material = json.dumps([team, subject, key], ensure_ascii=False, separators=(",", ":"))
+    return f"req_{hashlib.sha256(material.encode()).hexdigest()[:40]}"
 
 
 def _emit_admission_emf(result: str, latency_ms: float) -> None:
@@ -453,6 +694,7 @@ def _result(reservation: dict, *, replayed: bool) -> dict:
         "state": "ADMITTED",
         "http_status": 200,
         "reservation_id": reservation["reservation_id"],
+        "request_id": reservation.get("request_id"),
         "reserved_micro": reservation["reserved_micro"],
         "estimate_micro": reservation.get("estimate_micro"),
         "estimate": {

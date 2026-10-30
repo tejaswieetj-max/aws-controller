@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "vite --host localhost",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "test": "node --test tests/*.test.mjs",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host localhost"
   },
   "dependencies": {
     "react": "^18.3.1",

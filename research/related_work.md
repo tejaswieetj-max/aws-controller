@@ -12,23 +12,23 @@ Standard split and online conformal prediction provide distribution-free predict
 
 However, standard ACI assumes immediate feedback. Recent theoretical extensions introduce `τ`-delayed ACI (`τ`-DACI), decomposing the delayed update recursion into `τ` interleaved phase subsequences to establish long-run coverage bounds. A key theoretical diagnostic is the delay-to-memory ratio (`r=τ/L`), which demonstrates that the practical degradation of delayed conformal prediction depends on the relationship between feedback latency `τ` and the temporal memory scale `L` of residual non-exchangeability.
 
-Complementary frameworks address non-standard feedback structures: Online Conformal Prediction with Queries (OCPQ) explores active label querying under partial feedback, while group-weighted and announced-break conformal prediction handle known regime transitions. CALIBUR extends this body of work by introducing `τ`-EUDACI, which leverages monotonic provisional runtime telemetry to execute early miscoverage updates before final delayed labels arrive.
+Complementary frameworks address non-standard feedback structures: Online Conformal Prediction with Queries (OCPQ) explores active label querying under partial feedback, while group-weighted and announced-break conformal prediction handle known regime transitions. CALIBUR's design direction combines delayed final-label calibration with a *separate* operational early-warning signal. This repository does **not** implement or validate an early update to conformal coverage, and it makes no claim that telemetry can substitute for a final label.
 
 ### Domain B: Conformal Risk Control and Conformal Decision Theory
 
 While conformal prediction traditionally controls scalar prediction set error, Conformal Risk Control (CRC) extends distribution-free calibration to arbitrary monotonic loss functions, guaranteeing that expected loss remains below a specified risk target (`E[L]≤α`). Required-Level Risk Control (ReqRC) further adapts risk control to rolling windows under delayed feedback.
 
-Conformal Decision Theory (CDT) bridges conformal inference and action selection by mapping calibrated confidence sets directly to decision rules with bounded risk guarantees. System implementations such as Calibrated Collective Oversight (CCO) and RACE (Risk-Budgeted Online Scheduling) apply CDT and CRC to edge-cloud offloading and LLM routing. CALIBUR adapts CDT to financial cloud ledgers, formulating budget reservations as asymmetric decision rules under non-stationary expenditure drift.
+Conformal Decision Theory (CDT) bridges conformal inference and action selection by mapping calibrated confidence sets directly to decision rules with bounded-risk results under stated assumptions. System implementations such as Calibrated Collective Oversight (CCO) and RACE (Risk-Budgeted Online Scheduling) apply CDT and CRC to edge-cloud offloading and LLM routing. CALIBUR's local policy module borrows the *idea* of asymmetric reservation but does not establish a CDT/CRC guarantee for this setting.
 
 ### Domain C: State Estimation and Multi-Source Telemetry Fusion
 
-Cloud management platforms generate multi-rate, heterogeneous telemetry streams ranging from high-frequency metric integrals (CloudWatch) to delayed, revised billing summaries (CUR). Kalman filtering, Extended Kalman Filtering (EKF), and Iterative Extended Kalman Filtering (IEKF) provide classical paradigms for multi-sensor state estimation under non-uniform measurement latencies and observation noise. CALIBUR applies state-space Kalman filtering to cloud cost estimation, fusing provisional API signals and delayed billing ledgers to produce unbiased current spend estimates and variance bounds.
+Cloud management platforms generate multi-rate, heterogeneous telemetry streams ranging from high-frequency metric integrals (CloudWatch) to delayed, revised billing summaries (CUR). Kalman filtering, Extended Kalman Filtering (EKF), and Iterative Extended Kalman Filtering (IEKF) provide classical paradigms for multi-sensor state estimation under non-uniform measurement latencies and observation noise. A state-space estimator is a possible future design, but this repository does not implement one: the available fields do not define a defensible observation model or covariance, and no Kalman estimate is claimed to be unbiased.
 
 ### Domain D: Asymmetric Loss Optimization and Quantile Regression
 
 Resource allocation problems inherently exhibit asymmetric loss profiles: under-reservation leads to service level objective (SLO) breaches or job terminations, whereas over-reservation causes capital lockup. Quantile regression via pinball loss is widely used in cloud capacity planning, container oversubscription (e.g., Stratus), and predictive CPU isolation (e.g., Netflix production container management).
 
-While pinball loss optimizes expected asymmetric outcomes, it lacks finite-sample coverage guarantees during sudden distribution shifts. CALIBUR integrates asymmetric loss functions directly within a Conformal Decision Theory framework, combining asymmetric risk optimization with distribution-free safety bounds.
+While pinball loss optimizes expected asymmetric outcomes, it does not by itself provide finite-sample coverage during sudden distribution shifts. CALIBUR explores asymmetric reservation decisions, but this repository does not combine them with a proven distribution-free safety bound and does not claim one.
 
 ### Domain E: Cloud Budget Admission Control and Enforcement
 
@@ -40,7 +40,7 @@ In cloud workflow scheduling, classic algorithms focus on budget-driven scheduli
 
 | Existing Research Domain | Fundamental Limitation | CALIBUR Resolution Mechanism |
 |---|---|---|
-| **Delayed Conformal Inference (-DACI)** | Suffers coverage breakdown during feedback delay when cost drift occurs rapidly. | **-EUDACI**: Uses fast provisional usage signals to execute immediate, early updates before CUR arrival. |
-| **Quantile Regression (Pinball Loss)** | Provides no finite-sample safety guarantees under sudden non-stationary pricing shifts. | **SS-CDT**: Embedded within Conformal Decision Theory to guarantee distribution-free risk bounds. |
-| **Cloud Telemetry APIs** | Multi-rate reporting discrepancies introduce noise and ledger reconciliation lag. | **Kalman Filter Fusion**: State-space filtering fuses CloudWatch, Cost Explorer, and CUR into a single state. |
-| **FinOps Capital Reservation** | Employs static 24-48 hour hold periods for unspent buffers, locking excess capital. | **Hazard-Rate Survival Release**: Dynamically decays safety buffers based on empirical billing arrival functions. |
+| **Delayed conformal inference** | Coverage behavior degrades under long feedback delay and drift. | A separate early-warning channel is a research direction; it is not a proven coverage mechanism. |
+| **Quantile regression (pinball loss)** | No finite-sample safety guarantee under sudden non-stationarity. | Asymmetric reservation is implemented as a heuristic, not a proven risk bound. |
+| **Cloud telemetry APIs** | Multi-rate reporting and reconciliation lag. | A state-space estimator is not implemented without a defensible model. |
+| **FinOps capital reservation** | Static hold periods can lock excess capital. | A censoring-aware release interface is implemented; it is not estimated without real revision/arrival histories. |

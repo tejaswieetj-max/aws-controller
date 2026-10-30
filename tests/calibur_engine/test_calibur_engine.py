@@ -10,7 +10,6 @@ import json
 from decimal import Decimal
 
 import pytest
-
 from spendctl.calibration import (
     FIXED,
     MarginPolicies,
@@ -18,13 +17,11 @@ from spendctl.calibration import (
     resource_class_for,
 )
 from spendctl.calibur import (
-    DynamoCaliburStateStore,
     InMemoryCaliburStateStore,
     SettlementError,
     SettlementHandler,
     process_settlement_event,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -150,7 +147,7 @@ class TestMarginPoliciesPersistence:
             MarginPolicies.from_dict(d)
 
     def test_non_dict_raises(self):
-        with pytest.raises(ValueError, match="JSON object"):
+        with pytest.raises(TypeError, match="JSON object"):
             MarginPolicies.from_dict([1, 2, 3])
 
     def test_to_dict_is_json_serialisable(self):
@@ -281,8 +278,8 @@ class TestSettlementHandlerExclusions:
 
 class TestFeedbackLoop:
     def test_below_sample_gate_returns_fixed(self):
-        """Fewer than 10 samples must keep FIXED regardless of policy."""
-        p = MarginPolicies()
+        """Fewer than the configured gate must keep FIXED regardless of policy."""
+        p = MarginPolicies(min_samples=10)
         h = SettlementHandler(policies=p)
         for i in range(9):
             h.handle(_event(i, actual_micro=950_000))  # ratio ≈ 0.95 (low)
@@ -291,7 +288,7 @@ class TestFeedbackLoop:
 
     def test_at_sample_gate_adaptive_activates(self):
         """Exactly 10 samples must allow adaptive to depart from FIXED."""
-        p = MarginPolicies()
+        p = MarginPolicies(min_samples=10)
         h = SettlementHandler(policies=p)
         # ratios all 0.95 → Q(1-alpha) of [0.95]*10 < 1.10
         for i in range(10):
@@ -450,8 +447,9 @@ class TestAdmissionServiceActivePolicy:
     """Verify that active_policy flows from AdmissionService into _multiplier()."""
 
     def _make_service(self, policies, active_policy="fixed"):
-        from spendctl.admission import AdmissionService
         from unittest.mock import MagicMock
+
+        from spendctl.admission import AdmissionService
 
         ledger = MagicMock()
         pricing = MagicMock()
@@ -468,8 +466,9 @@ class TestAdmissionServiceActivePolicy:
         assert svc._multiplier() == Decimal("1.10")
 
     def test_invalid_policy_raises_at_construction(self):
-        from spendctl.admission import AdmissionService
         from unittest.mock import MagicMock
+
+        from spendctl.admission import AdmissionService
 
         with pytest.raises(ValueError, match="active_policy"):
             AdmissionService(
@@ -479,7 +478,7 @@ class TestAdmissionServiceActivePolicy:
             )
 
     def test_adaptive_below_sample_gate_still_gives_fixed(self):
-        p = MarginPolicies()
+        p = MarginPolicies(min_samples=10)
         h = SettlementHandler(policies=p)
         for i in range(9):  # 9 < 10 gate
             h.handle(_event(i, actual_micro=800_000))
@@ -488,7 +487,7 @@ class TestAdmissionServiceActivePolicy:
 
     def test_adaptive_above_gate_differs_when_ratios_are_low(self):
         """Once >= 10 samples with low ratios, adaptive multiplier < 1.10."""
-        p = MarginPolicies()
+        p = MarginPolicies(min_samples=10)
         h = SettlementHandler(policies=p)
         for i in range(10):
             h.handle(_event(i, actual_micro=800_000))  # ratio 0.80
@@ -497,7 +496,7 @@ class TestAdmissionServiceActivePolicy:
         assert mult < Decimal("1.10")
 
     def test_rolling_quantile_above_gate(self):
-        p = MarginPolicies()
+        p = MarginPolicies(min_samples=10)
         h = SettlementHandler(policies=p)
         for i in range(10):
             h.handle(_event(i, actual_micro=800_000))
@@ -507,8 +506,9 @@ class TestAdmissionServiceActivePolicy:
         assert Decimal("1.0") <= mult <= Decimal("2.0")
 
     def test_no_policies_uses_static_multiplier(self):
-        from spendctl.admission import AdmissionService
         from unittest.mock import MagicMock
+
+        from spendctl.admission import AdmissionService
 
         svc = AdmissionService(
             ledger=MagicMock(),

@@ -61,6 +61,14 @@ _IDEMPOTENCY_OMIT_FIELDS = {
     "provisional_settlement_id",
     "final_settlement_id",
     "final_actual_micro",
+    # Decision evidence changes on a retry but does not change what was
+    # requested, so it cannot participate in idempotency identity.
+    "request_id",
+    "decision_at",
+    "decision_budget_snapshot",
+    "policy_version",
+    "calibur_proposal",
+    "currency",
     "ttl",
 }
 
@@ -190,6 +198,25 @@ def _key(item: dict) -> dict:
     return {name: _encode(value) for name, value in item.items()}
 
 
+def _decision_budget_snapshot(snapshot: dict | None) -> dict | None:
+    """Validate the immutable budget state used by an admission decision."""
+    if snapshot is None:
+        return None
+    required = ("budget_micro", "available_micro", "reserved_micro", "spent_micro", "version")
+    if not isinstance(snapshot, dict):
+        raise TypeError("decision_budget_snapshot must be a mapping")
+    normalized = {field: snapshot.get(field) for field in required}
+    if any(isinstance(value, bool) or not isinstance(value, int) for value in normalized.values()):
+        raise ValueError("decision_budget_snapshot has missing or non-integer balances")
+    if normalized["budget_micro"] != (
+        normalized["available_micro"] + normalized["reserved_micro"] + normalized["spent_micro"]
+    ):
+        raise ValueError("decision_budget_snapshot violates the budget invariant")
+    if normalized["version"] < 1:
+        raise ValueError("decision_budget_snapshot version must be positive")
+    return normalized
+
+
 class DynamoLedger:
     """Atomic ledger over Budgets, Reservations, and Alerts DynamoDB tables.
 
@@ -305,6 +332,7 @@ class DynamoLedger:
         requester: str,
         reserved_micro: int,
         record: dict,
+        decision_budget_snapshot: dict | None = None,
     ) -> dict:
         """Atomically hold budget and durably claim an idempotency key."""
         amount = _money(reserved_micro, "reserved_micro")
@@ -335,6 +363,7 @@ class DynamoLedger:
             "created_at": now,
             "ttl": int(time.time()) + self.idempotency_ttl_seconds,
         }
+        now_utc = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         reservation_item = {
             **record,
             "pk": f"RES#{reservation_id}",
@@ -351,7 +380,17 @@ class DynamoLedger:
             "workflow_start_state": "NOT_STARTED",
             "settlement_version": 0,
             "created_at": now,
+            "decision_at_utc": now_utc,
         }
+        # The transaction below conditions on this exact state. Therefore this
+        # snapshot is the budget state used by a successful decision, rather
+        # than a later best-effort budget read.
+        snapshot = _decision_budget_snapshot(decision_budget_snapshot)
+        if snapshot is not None:
+            reservation_item["decision_budget_snapshot"] = snapshot
+            reservation_item["budget_before_available_micro"] = snapshot["available_micro"]
+            reservation_item["budget_before_reserved_micro"] = snapshot["reserved_micro"]
+            reservation_item["budget_before_spent_micro"] = snapshot["spent_micro"]
         planned_hours = reservation_item.get(
             "planned_hours", reservation_item.get("duration_hours")
         )
@@ -404,6 +443,24 @@ class DynamoLedger:
                 }
             },
         ]
+        if snapshot is not None:
+            budget_action = actions[-1]["Update"]
+            budget_action["ConditionExpression"] += (
+                " AND budget_micro = :decision_budget_micro"
+                " AND available_micro = :decision_available_micro"
+                " AND reserved_micro = :decision_reserved_micro"
+                " AND spent_micro = :decision_spent_micro"
+                " AND version = :decision_version"
+            )
+            budget_action["ExpressionAttributeValues"].update(
+                {
+                    ":decision_budget_micro": _encode(snapshot["budget_micro"]),
+                    ":decision_available_micro": _encode(snapshot["available_micro"]),
+                    ":decision_reserved_micro": _encode(snapshot["reserved_micro"]),
+                    ":decision_spent_micro": _encode(snapshot["spent_micro"]),
+                    ":decision_version": _encode(snapshot["version"]),
+                }
+            )
         self._require_open_budget(team, period)
         try:
             self.db.transact_write_items(TransactItems=actions)
@@ -423,6 +480,81 @@ class DynamoLedger:
                 team, idempotency_key, reservation_id, fingerprint, error
             )
         return {"reservation": reservation_item, "replayed": False}
+
+    def record_admission_denial(
+        self,
+        *,
+        request_id: str,
+        team: str,
+        requester: str,
+        period: str,
+        idempotency_key: str,
+        reason: str,
+        decision_at: str,
+        evidence: dict | None = None,
+    ) -> dict:
+        """Durably record one rejected admission attempt.
+
+        A denial has no budget mutation, so it cannot share the reservation
+        transaction.  Its request identity is conditional and immutable: a
+        retry observes the same denial and a contradictory outcome is rejected.
+        """
+        values = (
+            (request_id, "request_id"),
+            (team, "team"),
+            (requester, "requester"),
+            (period, "period"),
+            (idempotency_key, "idempotency_key"),
+            (reason, "reason"),
+            (decision_at, "decision_at"),
+        )
+        for value, name in values:
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"{name} is required")
+        item = {
+            "pk": f"REQUEST#{request_id}",
+            "sk": "DECISION",
+            "record_type": "ADMISSION_DECISION",
+            "request_id": request_id,
+            "team": team,
+            "requester": requester,
+            "budget_period": period,
+            "idempotency_key": idempotency_key,
+            "decision": "DENIED",
+            "denial_reason": reason,
+            "decision_at": decision_at,
+            "created_at": _now(),
+        }
+        if evidence is not None:
+            if not isinstance(evidence, dict):
+                raise TypeError("denial evidence must be a mapping")
+            item["calibur_proposal"] = evidence
+        try:
+            self.db.put_item(
+                TableName=self.reservations,
+                Item={key: _encode(value) for key, value in item.items()},
+                ConditionExpression="attribute_not_exists(pk)",
+            )
+            return {"decision": item, "replayed": False}
+        except ClientError as error:
+            if _error_code(error) != "ConditionalCheckFailedException":
+                raise
+            existing = self._get_item(
+                self.reservations, {"pk": f"REQUEST#{request_id}", "sk": "DECISION"}
+            )
+            identity_fields = (
+                "team",
+                "requester",
+                "budget_period",
+                "idempotency_key",
+                "decision",
+                "denial_reason",
+            )
+            if existing and all(existing.get(key) == item[key] for key in identity_fields):
+                return {"decision": existing, "replayed": True}
+            raise ReservationConflict(
+                "request_id already has a contradictory admission decision"
+            ) from error
 
     def release(self, reservation_id: str, *, released_at: str | None = None) -> dict:
         """Release an unstarted or definitively failed HELD reservation once."""

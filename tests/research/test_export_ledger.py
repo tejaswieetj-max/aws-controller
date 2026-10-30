@@ -6,6 +6,7 @@ No fixture values enter empirical research results.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -24,7 +25,6 @@ from export_ledger import (
     _dynamo_item_to_python,
     _verify_identity,
 )
-
 
 # ===========================================================================
 # 1. DynamoDB wire-format normaliser
@@ -166,8 +166,7 @@ class TestCliArguments:
 # ===========================================================================
 
 try:
-    import moto
-    HAS_MOTO = True
+    HAS_MOTO = importlib.util.find_spec("moto") is not None
 except ImportError:
     HAS_MOTO = False
 
@@ -177,9 +176,9 @@ class TestMotoExport:
     """End-to-end export test with Moto-backed DynamoDB."""
 
     def test_export_empty_table_writes_empty_arrays(self, tmp_path):
-        from moto import mock_aws
         import boto3
         import export_ledger
+        from moto import mock_aws
 
         with mock_aws():
             client = boto3.client("dynamodb", region_name="ap-south-1")
@@ -220,9 +219,9 @@ class TestMotoExport:
 
     def test_export_with_reservation_record(self, tmp_path):
         """One RESERVATION record in DynamoDB must appear in the export."""
-        from moto import mock_aws
         import boto3
         import export_ledger
+        from moto import mock_aws
 
         with mock_aws():
             client = boto3.client("dynamodb", region_name="ap-south-1")
@@ -282,9 +281,9 @@ class TestMotoExport:
 
     def test_export_excludes_records_from_other_periods(self, tmp_path):
         """Records for a different period must not appear in the export."""
-        from moto import mock_aws
         import boto3
         import export_ledger
+        from moto import mock_aws
 
         with mock_aws():
             client = boto3.client("dynamodb", region_name="ap-south-1")
@@ -340,7 +339,6 @@ class TestMotoExport:
 
     def test_export_no_overwrite_existing(self, tmp_path):
         """Export must refuse to overwrite an existing output file."""
-        from moto import mock_aws
         import export_ledger
 
         existing = tmp_path / "existing.json"
@@ -364,9 +362,9 @@ class TestMotoExport:
 
     def test_export_missing_table_exits(self, tmp_path):
         """When the DynamoDB table does not exist, the export exits gracefully."""
-        from moto import mock_aws
         import boto3
         import export_ledger
+        from moto import mock_aws
 
         with mock_aws():
             sts = boto3.client("sts", region_name="ap-south-1")

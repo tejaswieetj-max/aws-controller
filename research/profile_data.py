@@ -21,11 +21,11 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
-import io
 import json
+import math
 import sys
 import tarfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -324,14 +324,11 @@ SOURCE_APPROVAL: dict[str, dict[str, Any]] = {
         },
         "blocking_items": [],
         "s3_bucket_name_note": (
-            "S3 bucket name 'calibur-focus12-582422215613-ap-south-1' contains a "
-            "one-digit typo (613 instead of 623) relative to account 582422215623. "
-            "S3BucketOwner in the export config confirms 582422215623. "
-            "aws sts get-caller-identity confirms account 582422215623. "
-            "The export ARN uses 582422215623 (correct). "
-            "The bucket name is a cosmetic naming artifact; access is confirmed. "
-            "Previously recorded as unresolved discrepancy — now resolved: "
-            "account ID is 582422215623 throughout."
+            "The S3 delivery path and export ARN record account identifiers that "
+            "differ by one digit. Account-specific identifiers are withheld from "
+            "committed artifacts. This discrepancy is not treated as resolved "
+            "without owner confirmation against the AWS console; no identifier is "
+            "guessed or silently corrected."
         ),
     },
 }
@@ -576,7 +573,6 @@ def _profile_csv(
 
     # Streaming pass: count rows, missing, and exact_duplicate_records.
     # For large files we skip exact-duplicate detection (memory-unsafe) and say so.
-    EXACT_DUP_ROW_LIMIT = 200_000
     missing_by_col: dict[int, int] = {i: 0 for i in range(max(observed_col_count, documented_col_count))}
     total_rows = 0
     exact_duplicates: int | None = None
@@ -674,7 +670,6 @@ def _profile_parquet(path: Path, *, root: Path | None = None) -> dict[str, Any]:
     _root = root or ROOT
     try:
         import pyarrow.parquet as pq
-        import pyarrow.compute as pc
     except ImportError as exc:
         raise ProfileError(
             f"pyarrow is required to profile Parquet files but is not installed: {exc}"
@@ -731,7 +726,9 @@ def _profile_parquet(path: Path, *, root: Path | None = None) -> dict[str, Any]:
         elif pa.types.is_floating(arr.type):
             # Check for NaN which is a documented sentinel in some billing exports.
             py_list = arr.to_pylist()
-            nan_count = sum(1 for v in py_list if v is not None and v != v)  # NaN != NaN
+            nan_count = sum(
+                1 for v in py_list if isinstance(v, float) and math.isnan(v)
+            )  # NaN != NaN
             sentinel_count = nan_count
             sentinel_def = "NaN (floating-point not-a-number)"
             invalid_count = 0
@@ -802,13 +799,13 @@ def _profile_parquet(path: Path, *, root: Path | None = None) -> dict[str, Any]:
 
     notes = [
         "Dataset: AWS FOCUS 1.2 billing export (CALIBUR_FOCUS_12).",
-        f"Parquet metadata: org.apache.spark.version present in file metadata.",
+        "Parquet metadata: org.apache.spark.version present in file metadata.",
         f"Billing period: {bp_start} to {bp_end} (billing-period boundary timestamps, NOT billing-arrival timestamps).",
-        "BillingPeriodStart/End and ChargePeriodStart/End are period-boundary timestamps. "
-        "The time this record first became available to a controller has NOT been recorded.",
-        f"Tags: {tag_non_empty} rows with non-empty tag maps out of {row_count}. "
+        ("BillingPeriodStart/End and ChargePeriodStart/End are period-boundary timestamps. "
+        "The time this record first became available to a controller has NOT been recorded."),
+        (f"Tags: {tag_non_empty} rows with non-empty tag maps out of {row_count}. "
         "No CALIBUR reservation-id or team tags are present. "
-        "Linkage between these billing records and CALIBUR admission decisions is NOT established.",
+        "Linkage between these billing records and CALIBUR admission decisions is NOT established."),
         "InvoiceId: fully null in this delivery — no invoice number is available for deduplication.",
         "One delivery snapshot only. Billing revisions have not been observed.",
         "Currency: USD for all 12,200 rows.",
@@ -941,8 +938,8 @@ def profile_file(path: Path, manifest_text: str, *, root: Path | None = None) ->
                 "key_uniqueness": "unknown",
                 "fields": [],
                 "notes": [
-                    f"No documented schema for '{fname}'. "
-                    "This CSV was not profiled — it is not listed in ALIBABA_SCHEMAS or FOCUS definitions.",
+                    (f"No documented schema for '{fname}'. "
+                    "This CSV was not profiled — it is not listed in ALIBABA_SCHEMAS or FOCUS definitions."),
                 ],
                 "dataset": "unknown",
             }
@@ -1090,7 +1087,7 @@ def main(argv: list[str] | None = None) -> int:
 
     report = {
         "report_version": 2,
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "repository_root": str(root),
         "raw_directory_present": raw_root.is_dir(),
         "files_discovered": len(all_files),

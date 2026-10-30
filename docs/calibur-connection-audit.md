@@ -38,7 +38,7 @@
 |---|---|
 | CDKToolkit bootstrap stack | Deployed (CREATE_COMPLETE) |
 | FOCUS 1.2 Data Export (`CALIBUR_FOCUS_12`) | Deployed, HEALTHY, last refreshed 2026-10-25T11:25Z |
-| S3 bucket `calibur-focus12-582422215623-ap-south-1` | Deployed (3 deliveries, manifests) |
+| S3 bucket (account-specific name withheld) | Deployed (3 deliveries, manifests) |
 | AWS Budget `spendctl-monthly-budget` at $35 | Deployed |
 | **DynamoDB tables** | **None** |
 | **Lambda functions** | **None** |
@@ -101,7 +101,7 @@ Request → Admission → [DynamoDB ledger] → [Workflow] → [EC2] → [Lifecy
 - **Default VPC subnets have public IPv4 auto-assign** — EC2 instances launched in default subnets would get a public IP, violating the CALIBUR constraint. A private subnet with no internet route must be confirmed before deployment.
 - **AWS Budget notifications ≠ spending cap** — the $35 budget alert does not stop spending. EC2 costs are the primary risk. A 1-hour `t3.micro` with 8 GB gp3 costs ~$0.012 + ~$0.0009 ≈ $0.013. 100 such requests would cost ~$1.30. Risk is low if the admission flow is tested with minimal requests.
 - **No CloudTrail trail** — bypass detection (M7) requires a CloudTrail trail. None exists. The bypass detector Lambda rule would not fire.
-- **`billing.py` reconciler is disabled by default** — `EnableBillingReconciliation=false`. Even after deployment, the FOCUS billing data cannot reconcile until: (a) CUR 2.0 export is set up separately, OR (b) the reconciler is extended to handle FOCUS format. The current FOCUS export is via BCM Data Exports, not CUR 2.0.
+- **`billing.py` reconciler supports FOCUS 1.2 and is enabled by default** — `normalize_focus_record` maps FOCUS 1.2 columns (`BilledCost`, `ResourceId`, `ChargePeriodStart`, `Tags`, etc.) to the internal reconciliation model; `BillingSchema` defaults to `focus` and `EnableBillingReconciliation` defaults to `true` (see `infra/stacks/foundation.py`, asserted in `tests/unit/test_m9_m11_infra.py`). Late-arriving revisions replace prior billed amounts via `billing_source_revision_order` ordering and `reconciliation_id` idempotency, not duplicate charges (`tests/unit/test_billing.py`). The reconciler is **not** AWS-verified end-to-end: the Data Export, its Glue table, and `reservation-id`/`team` cost-allocation tags are still not created or activated in any account, and the FOCUS 1.2 vs CUR 2.0 schema match remains a deploy-time verification step.
 
 ---
 

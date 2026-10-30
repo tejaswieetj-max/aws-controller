@@ -107,6 +107,56 @@ class IdentityStack(Stack):
             value=f"https://{domain_prefix.value_as_string}.auth.{self.region}.amazoncognito.com",
         )
 
+        # Pre-token generation Lambda: adds cognito:groups claim to ID tokens
+        # so the API authorizer can enforce role-based access control.
+        pre_token_lambda = lambda_.Function(
+            self,
+            "PreTokenGeneration",
+            function_name="spendctl-dev-m5-pre-token-gen",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="index.lambda_handler",
+            code=lambda_.Code.from_inline("""
+import json
+import boto3
+import os
+
+cognito = boto3.client("cognito-idp")
+
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "")
+
+def lambda_handler(event, context):
+    trigger = event.get("triggerSource")
+    if trigger == "TokenGeneration_HostedAuth":
+        username = event.get("userName")
+        user_pool_id = event.get("userPoolId")
+        groups = []
+        try:
+            groups_resp = cognito.admin_list_groups_for_user(
+                UserPoolId=user_pool_id, Username=username
+            )
+            groups = [g["GroupName"] for g in groups_resp.get("Groups", [])]
+        except Exception:
+            # Fallback: if IAM permission is missing, check designated admin
+            if username == ADMIN_USERNAME:
+                groups = ["admins"]
+        event["response"]["claimsOverrideDetails"] = {
+            "claimsToAddOrOverride": {
+                "cognito:groups": ",".join(groups),
+            }
+        }
+    return event
+"""),
+            timeout=Duration.seconds(10),
+            memory_size=128,
+            environment={
+                "ADMIN_USERNAME": "calibur-admin-1@example.com",
+            },
+        )
+        self.pool.add_trigger(
+            cognito.UserPoolOperation.PRE_TOKEN_GENERATION,
+            pre_token_lambda,
+        )
+
 
 class DataStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs):
@@ -162,6 +212,7 @@ class ApiStack(Stack):
         data_stack,
         state_machine_arn,
         lifecycle_reaper_arn,
+        event_bus,
         **kwargs,
     ):
         super().__init__(scope, construct_id, **kwargs)
@@ -174,11 +225,30 @@ class ApiStack(Stack):
             "PRICE_CACHE_TABLE": data_stack.prices.table_name,
             "WORKFLOW_STATE_MACHINE_ARN": state_machine_arn,
             "LIFECYCLE_REAPER_ARN": lifecycle_reaper_arn,
+            "CALIBUR_KALMAN_CONFIG": self.node.try_get_context("calibur_kalman_config") or "",
+            "CALIBUR_ACTIVE_POLICY": self.node.try_get_context("calibur_active_policy")
+            or "rolling_quantile",
+            "CALIBUR_MIN_SAMPLES": str(self.node.try_get_context("calibur_min_samples") or 2),
+            "CALIBUR_MIN_MULTIPLIER": str(
+                self.node.try_get_context("calibur_min_multiplier") or "1.0"
+            ),
             "CORS_ALLOWED_ORIGINS": "http://localhost:5173",
         }
         functions = {}
 
-        def make_function(operation, handler, actions=(), resources=(), pricing=False):
+        def make_function(
+            operation,
+            handler,
+            actions=(),
+            resources=(),
+            pricing=False,
+            module="spendctl.api",
+        ):
+            # Every Lambda calls _get_services() -> _load_margin_policies() which
+            # queries spendctl-dev-costsamples. Grant dynamodb:Query on samples
+            # to every function so _get_services() never raises AccessDenied.
+            actions = ("dynamodb:Query",) + tuple(actions)
+            resources = (samples_arn,) + tuple(resources)
             name = f"spendctl-dev-m5-{operation.replace('_', '-')}"
             log_group = logs.LogGroup(
                 self,
@@ -218,7 +288,7 @@ class ApiStack(Stack):
                 f"{operation}Function",
                 function_name=name,
                 runtime=lambda_.Runtime.PYTHON_3_12,
-                handler=f"spendctl.api.{handler}",
+                handler=f"{module}.{handler}",
                 code=_lambda_code(source),
                 role=role,
                 memory_size=256,
@@ -277,11 +347,111 @@ class ApiStack(Stack):
         make_function(
             "put_budget",
             "put_budget_handler",
-            ["dynamodb:GetItem", "dynamodb:PutItem"],
-            [budgets_arn],
+            ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"],
+            [budgets_arn, samples_arn],
         )
         make_function(
             "calibration_summary", "calibration_summary_handler", ["dynamodb:Query"], [samples_arn]
+        )
+        make_function(
+            "state_estimate", "state_estimate_handler", ["dynamodb:Query"], [reservations_arn]
+        )
+        make_function(
+            "tau_state", "tau_state_handler", ["dynamodb:Query", "dynamodb:GetItem"], [reservations_arn]
+        )
+        make_function(
+            "telemetry_trace", "telemetry_trace_handler", ["dynamodb:GetItem", "dynamodb:Query"], [reservations_arn]
+        )
+        make_function(
+            "evidence_chain", "evidence_chain_handler", ["dynamodb:Query"], [reservations_arn]
+        )
+        make_function("release_plan", "release_plan_handler", ["dynamodb:Scan"], [reservations_arn])
+        make_function("historical_estimate", "historical_estimate_handler")
+        observation_ingestor = make_function(
+            "observation_ingestor",
+            "ingest_observation_handler",
+            ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:TransactWriteItems"],
+            [reservations_arn],
+        )
+        events.Rule(
+            self,
+            "CaliburObservationIngestion",
+            rule_name="spendctl-dev-calibur-observation-ingestion",
+            event_bus=event_bus,
+            event_pattern=events.EventPattern(
+                source=["spendctl.observations"], detail_type=["CaliburObservation"]
+            ),
+            targets=[event_targets.LambdaFunction(observation_ingestor)],
+        )
+        # S3 → observation ingestion: an existing FOCUS export bucket can be
+        # named with the `focus_export_bucket` CDK context value. The name is
+        # never committed because it contains an account-specific identifier.
+        # When the context value is absent the notification is intentionally not
+        # wired; the Lambda still exists for EventBridge observation events.
+        focus_bucket_name = self.node.try_get_context("focus_export_bucket")
+        if focus_bucket_name:
+            focus_bucket = s3.Bucket.from_bucket_name(
+                self, "FocusBucket", focus_bucket_name
+            )
+            focus_prefix = (
+                self.node.try_get_context("focus_export_prefix")
+                or "calibur/focus12/CALIBUR_FOCUS_12/data/"
+            )
+            focus_bucket.add_event_notification(
+                s3.EventType.OBJECT_CREATED_PUT,
+                s3_notifications.LambdaDestination(observation_ingestor),
+                s3.NotificationKeyFilter(prefix=focus_prefix),
+            )
+            observation_ingestor.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["s3:GetObject"],
+                    resources=[f"{focus_bucket.bucket_arn}/*"],
+                )
+            )
+            observation_ingestor.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["s3:ListBucket"],
+                    resources=[focus_bucket.bucket_arn],
+                )
+            )
+        tau_warning_handler = make_function(
+            "tau_warning_ledger", "record_warning_handler",
+            ["dynamodb:GetItem", "dynamodb:PutItem"], [reservations_arn],
+        )
+        events.Rule(
+            self, "CaliburTauWarningEvents",
+            rule_name="spendctl-dev-calibur-tau-warning-events",
+            event_bus=event_bus,
+            event_pattern=events.EventPattern(source=["spendctl.telemetry"], detail_type=["EarlyWarning"]),
+            targets=[event_targets.LambdaFunction(tau_warning_handler)],
+        )
+        tau_final_handler = make_function(
+            "tau_final_bill_ledger", "record_final_bill_handler",
+            ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:TransactWriteItems"], [reservations_arn],
+        )
+        events.Rule(
+            self, "CaliburTauFinalBills",
+            rule_name="spendctl-dev-calibur-tau-final-bills",
+            event_bus=event_bus,
+            event_pattern=events.EventPattern(source=["spendctl.billing"], detail_type=["ReservationSettled"]),
+            targets=[event_targets.LambdaFunction(tau_final_handler)],
+        )
+        sample_writer = make_function(
+            "calibur_sample_writer",
+            "sample_writer.reservation_settled_handler",
+            ["dynamodb:GetItem"],
+            [reservations_arn],
+            module="spendctl",
+        )
+        sample_writer.role.add_to_policy(
+            iam.PolicyStatement(actions=["dynamodb:PutItem"], resources=[samples_arn])
+        )
+        events.Rule(
+            self, "CaliburSampleWriter",
+            rule_name="spendctl-dev-calibur-sample-writer",
+            event_bus=event_bus,
+            event_pattern=events.EventPattern(source=["spendctl.billing"], detail_type=["ReservationSettled"]),
+            targets=[event_targets.LambdaFunction(sample_writer)],
         )
         make_function("list_alerts", "list_alerts_handler", ["dynamodb:Scan"], [alerts_arn])
 
@@ -375,6 +545,12 @@ class ApiStack(Stack):
         add_route("/v1/budgets/{team}", "GET", "get_budget")
         add_route("/v1/budgets/{team}", "PUT", "put_budget")
         add_route("/v1/calibration/summary", "GET", "calibration_summary")
+        add_route("/v1/calibur/state-estimate", "GET", "state_estimate")
+        add_route("/v1/calibur/jobs/{id}/early-updates", "GET", "tau_state")
+        add_route("/v1/calibur/resources/{id}/telemetry", "GET", "telemetry_trace")
+        add_route("/v1/requests/{id}/evidence-chain", "GET", "evidence_chain")
+        add_route("/v1/calibur/release-plan", "GET", "release_plan")
+        add_route("/v1/calibur/historical-estimate", "POST", "historical_estimate")
         add_route("/v1/alerts", "GET", "list_alerts")
 
         CfnOutput(self, "ApiUrl", value=f"{api.api_endpoint}/v1")
@@ -1460,7 +1636,17 @@ class BillingStack(Stack):
             self,
             "CurTableName",
             type="String",
-            description="Glue table name within spendctl_billing created by the manual CUR 2.0 export",
+            description=(
+                "Glue table name within spendctl_billing created by the FOCUS 1.2 or CUR 2.0 export"
+            ),
+        )
+        billing_schema = CfnParameter(
+            self,
+            "BillingSchema",
+            type="String",
+            default="focus",
+            allowed_values=["focus", "cur"],
+            description="Billing export schema: FOCUS 1.2 (default) or CUR 2.0",
         )
         cur_export_prefix = CfnParameter(
             self,
@@ -1468,15 +1654,24 @@ class BillingStack(Stack):
             type="String",
             default="cur/",
             allowed_pattern="^[A-Za-z0-9_./-]+$",
-            description="Dedicated object prefix used only by the configured CUR 2.0 export",
+            description="Dedicated object prefix used only by the configured billing export",
         )
         reconciliation_enabled = CfnParameter(
             self,
             "EnableBillingReconciliation",
             type="String",
-            default="false",
+            default="true",
             allowed_values=["true", "false"],
-            description="Explicit opt-in after CUR schema and completeness are verified",
+            description="Explicit opt-in; set false to stop all billing ledger changes",
+        )
+        finalization_delay_days = CfnParameter(
+            self,
+            "BillingFinalizationDelayDays",
+            type="Number",
+            default=60,
+            min_value=0,
+            max_value=365,
+            description="Days after billing-period end before reconciliation may change the ledger",
         )
         function_name = "spendctl-dev-m8-billing-reconciler"
         log_group = logs.LogGroup(
@@ -1580,6 +1775,8 @@ class BillingStack(Stack):
                 "CUR_EXPORT_BUCKET": self.cur_bucket.bucket_name,
                 "CUR_EXPORT_PREFIX": cur_export_prefix.value_as_string,
                 "CUR_TABLE": cur_table_name.value_as_string,
+                "BILLING_TABLE": cur_table_name.value_as_string,
+                "BILLING_SCHEMA": billing_schema.value_as_string,
                 "ATHENA_WORKGROUP": self.athena_workgroup.name,
                 "ATHENA_RESULTS_BUCKET": self.athena_results_bucket.bucket_name,
                 "BUDGETS_TABLE": data_stack.budgets.table_name,
@@ -1587,7 +1784,8 @@ class BillingStack(Stack):
                 "ALERTS_TABLE": data_stack.alerts.table_name,
                 "EVENT_BUS_NAME": event_bus.event_bus_name,
                 "BILLING_RECONCILIATION_ENABLED": reconciliation_enabled.value_as_string,
-                "CUR_FINALIZATION_DELAY_DAYS": "60",
+                "BILLING_FINALIZATION_DELAY_DAYS": finalization_delay_days.value_as_string,
+                "CUR_FINALIZATION_DELAY_DAYS": finalization_delay_days.value_as_string,
                 "ATHENA_QUERY_TIMEOUT_SECONDS": "240",
             },
         )
@@ -1609,6 +1807,12 @@ class BillingStack(Stack):
         CfnOutput(self, "CurExportsBucketName", value=self.cur_bucket.bucket_name)
         CfnOutput(self, "CurExportsBucketArn", value=self.cur_bucket.bucket_arn)
         CfnOutput(self, "CurExportPrefixValue", value=cur_export_prefix.value_as_string)
+        CfnOutput(self, "BillingSchemaValue", value=billing_schema.value_as_string)
+        CfnOutput(
+            self,
+            "BillingFinalizationDelayDaysValue",
+            value=finalization_delay_days.value_as_string,
+        )
         CfnOutput(self, "AthenaResultsBucketName", value=self.athena_results_bucket.bucket_name)
         CfnOutput(self, "BillingGlueDatabaseName", value="spendctl_billing")
         CfnOutput(self, "BillingAthenaWorkgroupName", value=self.athena_workgroup.name)

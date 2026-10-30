@@ -9,6 +9,7 @@ from spendctl.admission import AdmissionService, VerifiedIdentity
 from spendctl.api import ApiServices, route_request
 from spendctl.ledger import AmbiguousLedgerOutcome, DynamoLedger
 from spendctl.pricing import FixturePricingProvider, PriceNotFound
+from spendctl.state_estimation import StateEstimatorConfigurationError
 from spendctl.workflow_start import WorkflowStarter
 
 PERIOD = datetime.now(UTC).strftime("%Y-%m")
@@ -180,6 +181,86 @@ def test_missing_or_non_developer_claims_are_rejected(services):
             }
         },
     )
+
+
+def test_evidence_chain_requires_auth_and_reports_missing_links(services):
+    request_event = event(body=REQUEST, claims=claims(groups=["developers"]), headers={"Idempotency-Key": "evidence-key"})
+    _, created = unpack(route_request("create_request", request_event, services))
+    reservation_id = created["reservation_id"]
+    unauthenticated = event(path={"id": reservation_id})
+    assert unpack(route_request("evidence_chain", unauthenticated, services))[0] == 401
+    status, evidence = unpack(route_request("evidence_chain", event(path={"id": reservation_id}, claims=claims(groups=["developers"])), services))
+    assert status == 200
+    assert evidence["status"] == "INCOMPLETE"
+    assert evidence["links"]["reservation"]["available"] is True
+    assert "telemetry" in evidence["missing_links"]
+
+
+def test_evidence_chain_enforces_team_ownership(services):
+    request_event = event(body=REQUEST, claims=claims(groups=["developers"]), headers={"Idempotency-Key": "evidence-team-key"})
+    _, created = unpack(route_request("create_request", request_event, services))
+    status, body = unpack(route_request("evidence_chain", event(path={"id": created["reservation_id"]}, claims=claims(team="other", groups=["developers"])), services))
+    assert status == 403
+    assert body["error"]["code"] == "POLICY_DENIED"
+
+
+def test_release_plan_is_non_mutating_and_explicitly_data_gated(services):
+    before = services.ledger.get_budget("alpha", PERIOD)
+    status, result = unpack(route_request("release_plan", event(claims=claims(groups=["developers"])), services))
+    after = services.ledger.get_budget("alpha", PERIOD)
+    assert status == 200
+    assert result["proposal"]["status"] == "NOT_ESTIMABLE"
+    assert result["eligible_observation_count"] == 0
+    assert result["mutation"] == "NONE"
+    assert after["reserved_micro"] == before["reserved_micro"]
+
+
+def test_unconfigured_state_estimator_returns_actionable_503(services, monkeypatch):
+    from spendctl import state_estimation
+
+    def unconfigured(_event, _context):
+        raise StateEstimatorConfigurationError("configuration missing")
+
+    monkeypatch.setattr(state_estimation, "estimate_handler", unconfigured)
+    status, body = unpack(
+        route_request("state_estimate", event(claims=claims(groups=["developers"])), services)
+    )
+    assert status == 503
+    assert body["error"]["code"] == "CALIBUR_ESTIMATOR_UNCONFIGURED"
+
+
+def test_historical_estimate_is_admin_only_and_keeps_storage_unestimable(services, monkeypatch):
+    from spendctl import historical_estimation
+
+    monkeypatch.setattr(historical_estimation, "load_catalog", lambda: {
+        "source": {"dataset": "synthetic software test fixture", "sha256_verified": False},
+        "historical_period": {},
+        "method": "synthetic fixture method",
+        "compute_rates": [{
+            "instance_type": "t3.micro", "region": "ap-south-1", "unit": "Hours",
+            "currency": "USD", "mean_rate_micro_per_hour": "10000",
+            "minimum_rate_micro_per_hour": "9000", "maximum_rate_micro_per_hour": "11000",
+            "observation_rows": 2, "resource_count": 2,
+        }],
+    })
+    payload = {"resource": {"type": "ec2", "instance_type": "t3.micro", "ebs_gb": 8}, "duration_hours": 2, "region": "ap-south-1", "purpose": "qa"}
+    denied = route_request("historical_estimate", event(body=payload, claims=claims(groups=["developers"])), services)
+    assert unpack(denied)[0] == 403
+    status, result = unpack(route_request("historical_estimate", event(body=payload, claims=claims(groups=["admins"])), services))
+    assert status == 200
+    assert result["mode"] == "HISTORICAL_ESTIMATE"
+    assert result["compute"]["amount_micro"] == 20000
+    assert result["storage"]["status"] == "NOT_ESTIMABLE"
+    assert result["total"]["amount_micro"] is None
+
+
+def test_telemetry_trace_is_team_scoped_and_explicit_when_unavailable(services):
+    request_event = event(body=REQUEST, claims=claims(groups=["developers"]), headers={"Idempotency-Key": "telemetry-key"})
+    _, created = unpack(route_request("create_request", request_event, services))
+    status, trace = unpack(route_request("telemetry_trace", event(path={"id": created["reservation_id"]}, claims=claims(groups=["developers"])), services))
+    assert status == 200
+    assert trace["availability"] == "unavailable"
+    assert trace["points"] == []
 
 
 def test_v2_group_claim_in_bracket_string_form_is_parsed(services):
@@ -554,7 +635,7 @@ def test_admin_calibration_summary_uses_persisted_samples(services):
     services.db.put_item(
         TableName="CostSamples",
         Item={
-            "resource_class": {"S": "ec2"},
+            "resource_class": {"S": "ec2:t3"},
             "settled_at": {"S": "2026-10-01T00:00:00Z"},
             "settlement_id": {"S": "settlement-1"},
             "settlement_stage": {"S": "FINAL"},

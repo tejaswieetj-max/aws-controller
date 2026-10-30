@@ -102,8 +102,9 @@ class TestWriteJson:
         assert parsed["number"] == 42
 
     def test_handles_decimal_values(self, tmp_path):
-        from empirical_run import _write_json
         from decimal import Decimal
+
+        from empirical_run import _write_json
         p = tmp_path / "test.json"
         _write_json(p, {"amount": Decimal("1.10")})
         parsed = json.loads(p.read_text())
@@ -125,9 +126,8 @@ class TestMainOutputFiles:
 
     def _run_main(self, tmp_path, *, extra_args: list[str] | None = None) -> None:
         """Run empirical_run.main() with a monkeypatched feasibility result."""
-        import dataclasses
-        import ingestion.focus_billing_adapter as fba
         import empirical_run as er
+        import ingestion.focus_billing_adapter as fba
 
         # Build a minimal FeasibilityResult dataclass
         feasibility = fba.FeasibilityResult(
@@ -214,8 +214,8 @@ class TestMainOutputFiles:
 class TestLedgerExportIntegration:
     def test_ledger_export_empty_still_zero_observations(self, tmp_path):
         """Even with a real ledger export file, empty arrays → 0 observations."""
-        import ingestion.focus_billing_adapter as fba
         import empirical_run as er
+        import ingestion.focus_billing_adapter as fba
 
         # Write a minimal ledger export
         export_file = tmp_path / "export.json"
@@ -327,8 +327,8 @@ class TestStatusMode:
 class TestAlibabaPipelineIsolation:
     def test_alibaba_workload_not_in_evaluate_input(self, tmp_path):
         """The evaluate_input written by main() must have no Alibaba fields."""
-        import ingestion.focus_billing_adapter as fba
         import empirical_run as er
+        import ingestion.focus_billing_adapter as fba
 
         feasibility = fba.FeasibilityResult(
             feasibility_gate="AMBER",

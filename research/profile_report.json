@@ -2121,7 +2121,7 @@
         }
       },
       "blocking_items": [
-        "S3 account-ID discrepancy: S3 delivery path uses account 582422215613; export ARN in the manifest reads account 582422215623.  These differ by one digit in the penultimate position.  The correct value has not been confirmed.  Do not silently correct either value."
+        "S3 account-ID discrepancy: S3 delivery path uses account <redacted-account>; export ARN in the manifest reads account <redacted-account>.  These differ by one digit in the penultimate position.  The correct value has not been confirmed.  Do not silently correct either value."
       ]
     }
   },
@@ -2160,7 +2160,7 @@
   "unresolved_quality_issues": [
     {
       "issue": "AWS account-ID discrepancy in FOCUS delivery metadata",
-      "detail": "S3 delivery path uses account ID 582422215613.  Export ARN in CALIBUR_FOCUS_12-Manifest.json uses account ID 582422215623.  These differ by one digit (penultimate position: '1' vs '2').  The correct account ID has not been confirmed.  Neither value will be corrected or guessed until confirmed by the account owner.",
+      "detail": "S3 delivery path uses account ID <redacted-account>.  Export ARN in CALIBUR_FOCUS_12-Manifest.json uses account ID <redacted-account>.  These differ by one digit (penultimate position: '1' vs '2').  The correct account ID has not been confirmed.  Neither value will be corrected or guessed until confirmed by the account owner.",
       "source": "aws_focus_1.2",
       "status": "UNRESOLVED — requires confirmation from the account owner"
     },

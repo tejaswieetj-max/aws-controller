@@ -34,9 +34,9 @@ The applicable license or usage terms have not yet been independently verified. 
 
 ### Provenance
 - Source: AWS Data Exports, FOCUS 1.2 with AWS columns, export name `CALIBUR_FOCUS_12`.
-- Two deliveries acquired: 2026-10-24T19:27Z (111,251 bytes) and 2026-10-25T03:32Z (105,860 bytes).
+- Three deliveries acquired: 2026-10-24T19:27Z (111,251 bytes), 2026-10-25T03:32Z (105,860 bytes), and 2026-10-25T11:18Z (113,134 bytes). Each is retained in its own local path.
 - FOCUS schema version 1.2 confirmed from `CALIBUR_FOCUS_12-Manifest-FOCUS.json` (`DataGenerator`: Amazon Web Services, Inc.; `FocusVersion`: 1.2).
-- Manifests on disk correspond to Delivery 2 only; no manifest exists for Delivery 1.
+- Manifests on disk correspond to Delivery 2 only; no manifest exists for Delivery 1 or Delivery 3. Missing manifests are not reconstructed.
 
 ### Unique-key status
 No verified unique billing-record identity key has been established. `InvoiceId` is fully null in the inspected data. No key will be invented. Snapshot comparison used descriptive grouping only and must not be treated as a row-level identity comparison.

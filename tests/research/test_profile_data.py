@@ -8,13 +8,13 @@ Tests do not download data, access AWS, or make performance claims.
 from __future__ import annotations
 
 import csv
-import gzip
 import io
 import json
 import sys
 import tarfile
 import textwrap
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -25,7 +25,9 @@ RESEARCH_DIR = Path(__file__).resolve().parents[2] / "research"
 if str(RESEARCH_DIR) not in sys.path:
     sys.path.insert(0, str(RESEARCH_DIR))
 
-import profile_data as pd_mod  # noqa: E402
+from datetime import UTC
+
+import profile_data as pd_mod
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -205,12 +207,13 @@ class TestProfileParquet:
         """Create a minimal Parquet fixture that conforms to FOCUS 1.2 required columns.
         FIXTURE — not research data.
         """
+        from datetime import datetime
+
         import pyarrow as pa
         import pyarrow.parquet as pq
-        from datetime import datetime, timezone
 
-        ts_end   = datetime(2026, 11, 1, 0, 0, tzinfo=timezone.utc)
-        ts_start = datetime(2026, 10, 1, 0, 0, tzinfo=timezone.utc)
+        ts_end   = datetime(2026, 11, 1, 0, 0, tzinfo=UTC)
+        ts_start = datetime(2026, 10, 1, 0, 0, tzinfo=UTC)
 
         required_col_data: dict[str, pa.Array] = {
             "BilledCost":         pa.array([0.01, 0.02], type=pa.float64()),
@@ -275,12 +278,13 @@ class TestProfileParquet:
             pd_mod._profile_parquet(p, root=tmp_path)
 
     def test_null_counts_reported_accurately(self, tmp_path):
+        from datetime import datetime
+
         import pyarrow as pa
         import pyarrow.parquet as pq
-        from datetime import datetime, timezone
 
-        ts_end   = datetime(2026, 11, 1, 0, 0, tzinfo=timezone.utc)
-        ts_start = datetime(2026, 10, 1, 0, 0, tzinfo=timezone.utc)
+        ts_end   = datetime(2026, 11, 1, 0, 0, tzinfo=UTC)
+        ts_start = datetime(2026, 10, 1, 0, 0, tzinfo=UTC)
 
         table = pa.table({
             "BilledCost":         pa.array([0.01, None], type=pa.float64()),
@@ -570,7 +574,7 @@ class TestMain:
 # 9. Field-classification consistency
 # ---------------------------------------------------------------------------
 class TestFieldClassificationConsistency:
-    VALID_CLASSIFICATIONS = {"observed", "derived_deterministic", "estimated", "unknown"}
+    VALID_CLASSIFICATIONS: ClassVar[set[str]] = {"observed", "derived_deterministic", "estimated", "unknown"}
 
     def test_all_focus_required_classifications_valid(self):
         for f in pd_mod.FOCUS_REQUIRED_FIELDS:

@@ -12,6 +12,7 @@
   "concurrency_requests": 200,
   "calibration_lags": [0, 1, 7, 30],
   "lag_requests": 1000,
-  "output_dir": "research/results",
-  "billing_data": "synthetic_only"
+  "output_dir": "research/results/synthetic",
+  "billing_data": "synthetic_only",
+  "evidence_classification": "SYNTHETIC_ONLY_NOT_EVIDENCE"
 }

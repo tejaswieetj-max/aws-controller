@@ -11,6 +11,7 @@ from aws_cdk import aws_sqs as sqs
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from infra.stacks.foundation import (
+    ApiStack,
     BillingStack,
     DataStack,
     LifecycleStack,
@@ -19,6 +20,77 @@ from infra.stacks.foundation import (
     WebStack,
     _lambda_code,
 )
+
+
+def test_api_synth_includes_authenticated_calibur_and_tau_routes():
+    from infra.stacks.foundation import IdentityStack
+
+    app = App()
+    identity = IdentityStack(app, "IdentityStack")
+    data = DataStack(app, "DataStack")
+    source = Stack(app, "Source")
+    bus = events.EventBus(source, "Bus")
+    api = ApiStack(
+        app, "ApiStack", user_pool=identity.pool,
+        user_pool_client_id=identity.client.user_pool_client_id,
+        data_stack=data, state_machine_arn="arn:aws:states:ap-south-1:123456789012:stateMachine:test",
+        lifecycle_reaper_arn="arn:aws:lambda:ap-south-1:123456789012:function:reaper", event_bus=bus,
+    )
+    template = assertions.Template.from_stack(api).to_json()
+    resources = template["Resources"]
+    lambda_names = {resource["Properties"].get("FunctionName") for resource in resources.values() if resource["Type"] == "AWS::Lambda::Function"}
+    assert "spendctl-dev-m5-state-estimate" in lambda_names
+    assert "spendctl-dev-m5-observation-ingestor" in lambda_names
+    assert "spendctl-dev-m5-tau-warning-ledger" in lambda_names
+    assert "spendctl-dev-m5-tau-final-bill-ledger" in lambda_names
+    assert "spendctl-dev-m5-historical-estimate" in lambda_names
+    handlers = {
+        resource["Properties"].get("FunctionName"): resource["Properties"].get("Handler")
+        for resource in resources.values()
+        if resource["Type"] == "AWS::Lambda::Function"
+    }
+    assert (
+        handlers["spendctl-dev-m5-calibur-sample-writer"]
+        == "spendctl.sample_writer.reservation_settled_handler"
+    )
+    rule_names = {
+        resource["Properties"].get("Name")
+        for resource in resources.values()
+        if resource["Type"] == "AWS::Events::Rule"
+    }
+    assert "spendctl-dev-calibur-sample-writer" in rule_names
+    routes = [resource["Properties"].get("RouteKey") for resource in resources.values() if resource["Type"] == "AWS::ApiGatewayV2::Route"]
+    assert "GET /v1/calibur/state-estimate" in routes
+    assert "GET /v1/requests/{id}/evidence-chain" in routes
+    assert "POST /v1/calibur/historical-estimate" in routes
+    # The live export bucket is account-specific and must come from context,
+    # never from a committed literal.
+    assert "calibur-focus12" not in str(template)
+
+
+def test_api_stack_wires_focus_bucket_only_from_context():
+    from infra.stacks.foundation import IdentityStack
+
+    app = App(context={"focus_export_bucket": "focus-export-example"})
+    identity = IdentityStack(app, "IdentityStack")
+    data = DataStack(app, "DataStack")
+    source = Stack(app, "Source")
+    bus = events.EventBus(source, "Bus")
+    api = ApiStack(
+        app, "ApiStack", user_pool=identity.pool,
+        user_pool_client_id=identity.client.user_pool_client_id,
+        data_stack=data, state_machine_arn="arn:aws:states:ap-south-1:123456789012:stateMachine:test",
+        lifecycle_reaper_arn="arn:aws:lambda:ap-south-1:123456789012:function:reaper", event_bus=bus,
+    )
+    body = assertions.Template.from_stack(api).to_json()
+    notifications = [
+        resource
+        for resource in body["Resources"].values()
+        if resource["Type"] == "Custom::S3BucketNotifications"
+    ]
+    assert notifications
+    assert notifications[0]["Properties"]["BucketName"] == "focus-export-example"
+    assert "focus-export-example" in str(body)
 
 
 def test_lambda_asset_staging_excludes_python_bytecode(tmp_path: Path):
@@ -180,3 +252,33 @@ def test_observability_synthesizes_dashboard_alarms_and_no_broad_execution_role(
     for metric in ("Spendctl/Workflow", "Spendctl/Lifecycle", "Spendctl/Billing",
                    "Spendctl/Pricing", "Spendctl/Budget", "InvariantViolation"):
         assert metric in serialized
+
+
+def test_billing_stack_enables_focus_reconciliation_with_finalization_gate():
+    app = App()
+    data = DataStack(app, "DataStack")
+    source = Stack(app, "SourceStack")
+    event_bus = events.EventBus(source, "EventBus")
+    billing = BillingStack(app, "BillingStack", data_stack=data, event_bus=event_bus)
+    template = assertions.Template.from_stack(billing)
+    body = template.to_json()
+    parameters = body["Parameters"]
+    assert parameters["EnableBillingReconciliation"]["Default"] == "true"
+    assert parameters["BillingSchema"]["Default"] == "focus"
+    assert parameters["BillingFinalizationDelayDays"]["Default"] == 60
+
+    function = next(
+        resource
+        for resource in body["Resources"].values()
+        if resource["Type"] == "AWS::Lambda::Function"
+        and resource["Properties"].get("FunctionName") == "spendctl-dev-m8-billing-reconciler"
+    )
+    variables = function["Properties"]["Environment"]["Variables"]
+    assert variables["BILLING_SCHEMA"] == {"Ref": "BillingSchema"}
+    assert variables["BILLING_TABLE"] == {"Ref": "CurTableName"}
+    assert variables["BILLING_RECONCILIATION_ENABLED"] == {
+        "Ref": "EnableBillingReconciliation"
+    }
+    assert variables["BILLING_FINALIZATION_DELAY_DAYS"] == {
+        "Ref": "BillingFinalizationDelayDays"
+    }

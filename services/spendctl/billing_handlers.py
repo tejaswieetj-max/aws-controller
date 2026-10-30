@@ -1,4 +1,4 @@
-"""AWS adapters for CUR manifest-triggered Athena reconciliation."""
+"""AWS adapters for CUR 2.0 / FOCUS 1.2 manifest-triggered reconciliation."""
 
 from __future__ import annotations
 
@@ -9,12 +9,20 @@ import re
 import time
 from datetime import UTC, datetime
 from functools import partial
-from urllib.parse import unquote_plus
+from urllib.parse import unquote_plus, urlsplit
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from .billing import BillingReconciler, InvalidBillingRecord, normalize_record, validate_manifest
+from .billing import (
+    BillingReconciler,
+    IncompleteBillingSnapshot,
+    InvalidBillingRecord,
+    normalize_focus_record,
+    normalize_record,
+    validate_focus_manifest,
+    validate_manifest,
+)
 from .ledger import DynamoLedger
 
 _REQUIRED_CUR_COLUMNS = (
@@ -36,12 +44,43 @@ _OPTIONAL_CUR_COLUMNS = (
     "resource_tags_user_reservation_id",
     "resource_tags_user_team",
 )
+_REQUIRED_FOCUS_COLUMNS = (
+    "BillingPeriodStart",
+    "ChargePeriodStart",
+    "ChargePeriodEnd",
+    "ChargeCategory",
+    "BilledCost",
+    "BillingCurrency",
+    "x_ServiceCode",
+)
+_OPTIONAL_FOCUS_COLUMNS = (
+    "BillingPeriodEnd",
+    "ChargeClass",
+    "ChargeFrequency",
+    "ChargeDescription",
+    "EffectiveCost",
+    "BillingAccountId",
+    "SubAccountId",
+    "ResourceId",
+    "ResourceName",
+    "ResourceType",
+    "x_Operation",
+    "Tags",
+    "ServiceName",
+    "SkuMeter",
+    "ConsumedUnit",
+    "PricingCategory",
+    "RegionId",
+)
+_SCHEMAS = {"cur", "focus"}
+_COLUMN_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def billing_manifest_handler(event, context):
     """Reconcile only a validated manifest after the safety delay and opt-in."""
     s3 = boto3.client("s3", region_name=_region())
     athena = boto3.client("athena", region_name=_region())
+    schema = _billing_schema()
     manifest_results = []
     for record in event.get("Records", []):
         bucket = record.get("s3", {}).get("bucket", {}).get("name")
@@ -61,19 +100,47 @@ def billing_manifest_handler(event, context):
             raise
         try:
             manifest = json.loads(response["Body"].read())
-            period, revision, revision_order = validate_manifest(manifest)
+            if schema == "focus":
+                snapshot = validate_focus_manifest(manifest, object_key=key)
+                _validate_focus_location(snapshot, bucket, _required("CUR_EXPORT_PREFIX"))
+                period = snapshot.billing_period
+                revision = snapshot.revision
+                revision_order = snapshot.revision_order
+                data_files = snapshot.data_files
+            else:
+                period, revision, revision_order = validate_manifest(manifest)
+                data_files = None
         except (InvalidBillingRecord, json.JSONDecodeError, UnicodeDecodeError) as error:
             _emit_event(
                 "BillingSchemaInvalid",
                 {"object_key": key, "reason": type(error).__name__},
             )
             raise
+        except IncompleteBillingSnapshot as error:
+            _emit_event(
+                "BillingSnapshotIncomplete",
+                {"object_key": key, "reason": type(error).__name__},
+            )
+            raise
         if not _enabled() or not _old_enough(period):
             manifest_results.append({"state": "DEFERRED", "period": period, "revision": revision})
             continue
-        rows = _query_rows(athena, period)
-        object_id = f"s3://{bucket}/{key}#{revision}"
-        normalized = [normalize_record(row, object_id=object_id) for row in rows]
+        if schema == "focus":
+            rows = _query_rows(athena, period, schema=schema, data_files=data_files)
+            if not rows:
+                detail = {"object_key": key, "revision": revision, "reason": "no rows returned"}
+                _emit_event("BillingSnapshotIncomplete", detail)
+                raise IncompleteBillingSnapshot(
+                    "FOCUS manifest declares data files but Athena returned no rows"
+                )
+            normalized = [
+                normalize_focus_record(row, snapshot_id=revision, row_index=index)
+                for index, row in enumerate(rows)
+            ]
+        else:
+            rows = _query_rows(athena, period, schema=schema)
+            object_id = f"s3://{bucket}/{key}#{revision}"
+            normalized = [normalize_record(row, object_id=object_id) for row in rows]
         ledger = _ledger()
         result = BillingReconciler(ledger, emit=partial(_emit_event, ledger=ledger)).reconcile(
             normalized,
@@ -81,11 +148,13 @@ def billing_manifest_handler(event, context):
             source_revision=revision,
             source_revision_order=revision_order,
             complete=True,
+            stale_revision_policy="skip" if schema == "focus" else "raise",
         )
         _metric("BillingRecordsProcessed", result.processed)
         _metric("BillingRecordsUnattributed", result.unattributed)
         _metric("BillingRecordsExcluded", result.excluded)
         _metric("BillingDuplicateRecords", result.duplicates)
+        _metric("BillingSkippedRevisions", result.skipped)
         _metric(
             "BillingAdjustmentMicroUsd",
             sum(int(row.get("adjustment_micro") or 0) for row in result.adjustments),
@@ -98,15 +167,38 @@ def billing_manifest_handler(event, context):
             unit="None",
         )
         manifest_results.append(
-            {"state": "RECONCILED", "period": period, "revision": revision, **result.__dict__}
+            {
+                "state": "RECONCILED",
+                "schema": schema,
+                "period": period,
+                "revision": revision,
+                **result.__dict__,
+            }
         )
     return {"state": "OK", "manifests": manifest_results}
 
 
-def _query_rows(client, period: str) -> list[dict]:
-    table = _required("CUR_TABLE")
+def _validate_focus_location(snapshot, bucket: str, prefix: str) -> None:
+    for uri in snapshot.data_files:
+        parsed = urlsplit(uri)
+        if parsed.netloc != bucket:
+            raise InvalidBillingRecord("FOCUS data file is in a different S3 bucket")
+        file_key = parsed.path.lstrip("/")
+        if not file_key.startswith(prefix) or ".." in file_key.split("/"):
+            raise InvalidBillingRecord("FOCUS data file is outside the configured export prefix")
+
+
+def _query_rows(
+    client, period: str, *, schema: str | None = None, data_files=None
+) -> list[dict]:
+    schema = (schema or _billing_schema()).lower()
+    if schema not in _SCHEMAS:
+        raise ValueError("BILLING_SCHEMA must be 'focus' or 'cur'")
+    if not re.fullmatch(r"\d{4}-\d{2}", period):
+        raise InvalidBillingRecord("billing period must be YYYY-MM")
+    table = _table_name()
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
-        raise ValueError("CUR_TABLE must be a Glue table name in spendctl_billing")
+        raise ValueError("billing table must be a Glue table name in spendctl_billing")
     database, table_name = "spendctl_billing", table
     try:
         glue_table = boto3.client("glue", region_name=_region()).get_table(
@@ -116,33 +208,71 @@ def _query_rows(client, period: str) -> list[dict]:
         _emit_event("BillingIngestionFailed", {"table": table_name, "reason": type(error).__name__})
         raise
     available = {
-        str(column["Name"]).lower()
+        str(column["Name"]).lower(): str(column["Name"])
         for column in glue_table.get("StorageDescriptor", {}).get("Columns", [])
+        if _COLUMN_NAME.fullmatch(str(column.get("Name", "")))
     }
-    missing = set(_REQUIRED_CUR_COLUMNS) - available
-    if not ({"line_item_unblended_cost", "line_item_net_unblended_cost"} & available):
+    required = _REQUIRED_FOCUS_COLUMNS if schema == "focus" else _REQUIRED_CUR_COLUMNS
+    optional = _OPTIONAL_FOCUS_COLUMNS if schema == "focus" else _OPTIONAL_CUR_COLUMNS
+    missing = {name for name in required if name.lower() not in available}
+    if schema == "cur" and not (
+        {"line_item_unblended_cost", "line_item_net_unblended_cost"} & available.keys()
+    ):
         missing.add("line_item_unblended_cost or line_item_net_unblended_cost")
     if missing:
         _emit_event("BillingSchemaInvalid", {"missing_columns": sorted(missing)})
-        raise InvalidBillingRecord(f"CUR table missing required columns: {sorted(missing)}")
-    selected = [name for name in _REQUIRED_CUR_COLUMNS + _OPTIONAL_CUR_COLUMNS if name in available]
+        raise InvalidBillingRecord(
+            f"{schema.upper()} table missing required columns: {sorted(missing)}"
+        )
+    selected = [available[name.lower()] for name in (*required, *optional) if name.lower() in available]
     columns = ", ".join(f'"{column}"' for column in selected)
     sql_table = f'"{database}"."{table_name}"'
-    predicates = [
-        f"date_format(CAST(bill_billing_period_start_date AS timestamp), '%Y-%m') = '{period}'"
-    ]
     partition_keys = {
-        str(key["Name"]).lower()
+        str(key["Name"]).lower(): str(key["Name"])
         for key in glue_table.get("PartitionKeys", [])
-        if re.fullmatch(r"[a-z_][a-z0-9_]*", str(key.get("Name", "")).lower())
+        if _COLUMN_NAME.fullmatch(str(key.get("Name", "")))
     }
-    if "bill_billing_period" in partition_keys:
-        predicates.append(f"\"bill_billing_period\" = '{period}'")
-    elif "billing_period" in partition_keys:
-        predicates.append(f"\"billing_period\" = '{period}'")
-    elif {"year", "month"}.issubset(partition_keys):
-        year, month = period.split("-")
-        predicates.extend([f"\"year\" = '{year}'", f"\"month\" = '{month}'"])
+    if schema == "focus":
+        if "billing_period" in partition_keys:
+            predicates = [f'"{partition_keys["billing_period"]}" = \'{period}\'']
+        elif {"year", "month"}.issubset(partition_keys):
+            year, month = period.split("-")
+            predicates = [
+                f'"{partition_keys["year"]}" = \'{year}\'',
+                f'"{partition_keys["month"]}" = \'{month}\'',
+            ]
+        else:
+            start_column = available["billingperiodstart"]
+            predicates = [
+                f"date_format(CAST(\"{start_column}\" AS timestamp), '%Y-%m') = '{period}'"
+            ]
+        if data_files is not None:
+            if not data_files:
+                raise IncompleteBillingSnapshot("FOCUS query requires the manifest data files")
+            for uri in data_files:
+                if not isinstance(uri, str) or "'" in uri or "\\" in uri:
+                    raise InvalidBillingRecord("FOCUS data file is unsafe for an Athena query")
+                parsed = urlsplit(uri)
+                if parsed.scheme != "s3" or not parsed.netloc or not parsed.path:
+                    raise InvalidBillingRecord("FOCUS data file must be an S3 URI")
+            literals = ", ".join(f"'{uri}'" for uri in data_files)
+            predicates.append(f'"$path" IN ({literals})')
+    else:
+        start_column = available["bill_billing_period_start_date"]
+        period_expression = f"date_format(CAST(\"{start_column}\" AS timestamp), '%Y-%m')"
+        predicates = [f"{period_expression} = '{period}'"]
+        if "bill_billing_period" in partition_keys:
+            predicates.append(f'"{partition_keys["bill_billing_period"]}" = \'{period}\'')
+        elif "billing_period" in partition_keys:
+            predicates.append(f'"{partition_keys["billing_period"]}" = \'{period}\'')
+        elif {"year", "month"}.issubset(partition_keys):
+            year, month = period.split("-")
+            predicates.extend(
+                [
+                    f'"{partition_keys["year"]}" = \'{year}\'',
+                    f'"{partition_keys["month"]}" = \'{month}\'',
+                ]
+            )
     sql = f"SELECT {columns} FROM {sql_table} WHERE " + " AND ".join(predicates)
     try:
         response = client.start_query_execution(
@@ -183,14 +313,29 @@ def _query_rows(client, period: str) -> list[dict]:
                 continue
             values += [None] * (len(names) - len(values))
             rows.append(dict(zip(names, values, strict=True)))
-    if (
-        names is None
-        or any(name not in names for name in _REQUIRED_CUR_COLUMNS)
-        or not ({"line_item_unblended_cost", "line_item_net_unblended_cost"} & set(names))
+    returned = {name.lower() for name in names} if names else set()
+    result_missing = {name for name in required if name.lower() not in returned}
+    if schema == "cur" and not (
+        {"line_item_unblended_cost", "line_item_net_unblended_cost"} & returned
     ):
+        result_missing.add("line_item_unblended_cost or line_item_net_unblended_cost")
+    if names is None or result_missing:
         _emit_event("BillingSchemaInvalid", {"columns": names or []})
-        raise InvalidBillingRecord("Athena result does not match configured CUR 2.0 fields")
+        raise InvalidBillingRecord(
+            f"Athena result does not match configured {schema.upper()} fields"
+        )
     return rows
+
+
+def _billing_schema() -> str:
+    schema = os.environ.get("BILLING_SCHEMA", "cur").strip().lower()
+    if schema not in _SCHEMAS:
+        raise ValueError("BILLING_SCHEMA must be 'focus' or 'cur'")
+    return schema
+
+
+def _table_name() -> str:
+    return _required("BILLING_TABLE") if os.environ.get("BILLING_TABLE") else _required("CUR_TABLE")
 
 
 def _old_enough(period: str) -> bool:
@@ -199,9 +344,10 @@ def _old_enough(period: str) -> bool:
     if period_end_month == 13:
         year, period_end_month = year + 1, 1
     period_end = datetime(year, period_end_month, 1, tzinfo=UTC)
-    return (datetime.now(UTC) - period_end).days >= int(
-        os.environ.get("CUR_FINALIZATION_DELAY_DAYS", "60")
+    delay = os.environ.get("BILLING_FINALIZATION_DELAY_DAYS") or os.environ.get(
+        "CUR_FINALIZATION_DELAY_DAYS", "60"
     )
+    return (datetime.now(UTC) - period_end).days >= int(delay)
 
 
 def _enabled() -> bool:
@@ -233,6 +379,7 @@ def _emit_event(name: str, detail: dict, *, ledger=None) -> None:
         "BillingSchemaInvalid",
         "BillingIngestionFailed",
         "BillingLedgerConflict",
+        "BillingSnapshotIncomplete",
     }
     if name in alert_types:
         _metric("BillingReconciliationFailures", 1)

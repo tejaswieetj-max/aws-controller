@@ -353,7 +353,7 @@ def provenance(path: str | Path, *, allow_unlisted: bool = False) -> dict[str, A
             prov["focus_version"] = (raw.get("Schema") or {}).get("FocusVersion")
         else:
             prov["execution_id"] = raw.get("executionId")
-    except Exception:
-        pass
+    except (OSError, json.JSONDecodeError, AttributeError, TypeError):
+        prov["read_error"] = "manifest content could not be read"
 
     return prov

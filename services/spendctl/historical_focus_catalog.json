@@ -1,0 +1,57 @@
+{
+  "compute_rates": [
+    {
+      "charge_period_end": "2026-10-06T18:00:00+00:00",
+      "charge_period_start": "2026-10-05T16:00:00+00:00",
+      "currency": "USD",
+      "instance_type": "t3.micro",
+      "maximum_rate_micro_per_hour": "11200.0000",
+      "mean_rate_micro_per_hour": "11200.0000",
+      "minimum_rate_micro_per_hour": "11200.0000",
+      "observation_rows": 20,
+      "operating_system": "Linux",
+      "region": "ap-south-1",
+      "resource_count": 6,
+      "skipped_rows_missing_resource_id": 0,
+      "unit": "Hours"
+    },
+    {
+      "charge_period_end": "2026-10-25T03:00:00+00:00",
+      "charge_period_start": "2026-10-01T00:00:00+00:00",
+      "currency": "USD",
+      "instance_type": "t3.micro",
+      "maximum_rate_micro_per_hour": "13200.0000",
+      "mean_rate_micro_per_hour": "13200.0000",
+      "minimum_rate_micro_per_hour": "13200.0000",
+      "observation_rows": 579,
+      "operating_system": "Linux",
+      "region": "ap-southeast-2",
+      "resource_count": 1,
+      "skipped_rows_missing_resource_id": 0,
+      "unit": "Hours"
+    }
+  ],
+  "historical_period": {
+    "billing_period_end": "2026-11-01T00:00:00+00:00",
+    "billing_period_start": "2026-10-01T00:00:00+00:00",
+    "charge_period_semantics": "FOCUS billing/charge period boundaries; not arrival timestamps"
+  },
+  "method": "For each observed resource, sum BilledCost and consumed Hours in the latest approved snapshot; average the per-resource USD/hour rates, then multiply by requested runtime.",
+  "mode": "HISTORICAL_ESTIMATE",
+  "schema_version": 1,
+  "source": {
+    "billing_period_end": "2026-11-01T00:00:00+00:00",
+    "billing_period_start": "2026-10-01T00:00:00+00:00",
+    "currency": "USD",
+    "dataset": "AWS FOCUS 1.2",
+    "delivery_label": "D3",
+    "delivery_path": "data/raw/focus12/delivery_2026-10-25T11/CALIBUR_FOCUS_12-00001.snappy.parquet",
+    "delivery_timestamp": "2026-10-25T11:18:08.607Z",
+    "delivery_timestamp_semantics": "export delivery timestamp; not billing amount first-availability",
+    "row_count": 12579,
+    "sha256": "a6c184a5cae50b43d0a7d0e46c5987ff8852cd8aeb4799b4cfa7bb3e1e1c08f0",
+    "sha256_verified": true
+  },
+  "storage_reason": "The selected FOCUS rows do not expose a verified gp3 volume SKU and matching GB-month usage needed for the requested EBS estimate.",
+  "storage_status": "NOT_ESTIMABLE"
+}

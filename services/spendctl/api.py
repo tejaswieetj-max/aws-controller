@@ -25,11 +25,13 @@ from .admission import (
     AdmissionConflict,
     AdmissionInsufficientBudget,
     AdmissionOutcomeUnknown,
+    AdmissionPolicyDenied,
     AdmissionPricingUnavailable,
     AdmissionRetryableFailure,
     AdmissionService,
     UnauthorizedTeam,
     VerifiedIdentity,
+    active_policy_from_env,
 )
 from .calibration import MarginPolicies, Sample
 from .ledger import (
@@ -41,6 +43,7 @@ from .ledger import (
 )
 from .lifecycle import lifecycle_event_id
 from .money import usd_to_micro
+from .observability import structured_log
 from .pricing import (
     CachedPricingProvider,
     DynamoDBPriceCache,
@@ -49,6 +52,8 @@ from .pricing import (
     ResilientPricingProvider,
     TieredPriceCache,
 )
+from .state_estimation import StateEstimatorConfigurationError
+from .validation import validate_request
 from .workflow_start import WorkflowStarter, WorkflowStartOutcomeUnknown
 
 _DESERIALIZER = TypeDeserializer()
@@ -94,7 +99,12 @@ def _get_services() -> ApiServices:
         ResilientPricingProvider(PriceList(price_client)),
         TieredPriceCache(InMemoryPriceCache(), DynamoDBPriceCache(db, price_cache_table)),
     )
-    admission = AdmissionService(ledger, pricing)
+    admission = AdmissionService(
+        ledger,
+        pricing,
+        policies=_load_margin_policies_with_logging(db, samples),
+        active_policy=active_policy_from_env(),
+    )
     workflow_client = boto3.client("stepfunctions", region_name=region)
     workflow = WorkflowStarter(
         workflow_client,
@@ -180,6 +190,30 @@ def calibration_summary_handler(event, context):
     return _entrypoint("calibration_summary", event)
 
 
+def state_estimate_handler(event, context):
+    return _entrypoint("state_estimate", event)
+
+
+def tau_state_handler(event, context):
+    return _entrypoint("tau_state", event)
+
+
+def evidence_chain_handler(event, context):
+    return _entrypoint("evidence_chain", event)
+
+
+def release_plan_handler(event, context):
+    return _entrypoint("release_plan", event)
+
+
+def telemetry_trace_handler(event, context):
+    return _entrypoint("telemetry_trace", event)
+
+
+def historical_estimate_handler(event, context):
+    return _entrypoint("historical_estimate", event)
+
+
 def list_alerts_handler(event, context):
     return _entrypoint("list_alerts", event)
 
@@ -187,10 +221,36 @@ def list_alerts_handler(event, context):
 def _entrypoint(operation: str, event: dict):
     try:
         services = _get_services()
-    except (BotoCoreError, ClientError):
+    except (BotoCoreError, ClientError) as error:
+        structured_log(
+            "M5",
+            "state_estimator",
+            "error",
+            error_category="estimator_unavailable",
+            error=type(error).__name__,
+            error_message=str(error)[:200],
+        )
         return _error(503, "SERVICE_UNAVAILABLE", "A required backend service is unavailable")
-    except (RuntimeError, ValueError):
+    except (RuntimeError, ValueError) as error:
+        structured_log(
+            "M5",
+            "state_estimator",
+            "error",
+            error_category="configuration_error",
+            error=type(error).__name__,
+            error_message=str(error)[:200],
+        )
         return _error(500, "INTERNAL_ERROR", "The API service is not configured")
+    except Exception as error:  # noqa: BLE001 - catch-all for diagnostic logging
+        structured_log(
+            "M5",
+            "state_estimator",
+            "error",
+            error_category="unexpected",
+            error=type(error).__name__,
+            error_message=str(error)[:200],
+        )
+        return _error(500, "INTERNAL_ERROR", f"Unexpected error: {type(error).__name__}")
     return route_request(operation, event, services)
 
 
@@ -207,13 +267,29 @@ def route_request(operation: str, event: dict, services: ApiServices) -> dict:
 def _route_request(operation: str, event: dict, services: ApiServices) -> dict:
     try:
         identity, groups = authenticated_identity(event)
-        if operation in {"put_budget", "calibration_summary", "list_alerts"}:
+        if operation in {"put_budget", "calibration_summary", "list_alerts", "historical_estimate"}:
             _require_admin(groups)
         else:
             _require_developer(groups)
         if operation == "estimate":
             result = services.admission.estimate(_body(event), identity)
             return _response(200, result)
+        if operation == "historical_estimate":
+            from .historical_estimation import estimate_from_catalog, load_catalog
+
+            payload = _body(event)
+            request = validate_request({**payload, "team": identity.team})
+            region = payload.get("region")
+            if not isinstance(region, str) or not region:
+                raise ValueError("region is required for a historical estimate")
+            estimate = estimate_from_catalog(
+                load_catalog(),
+                instance_type=request.instance_type,
+                region=region,
+                duration_hours=request.duration_hours,
+                ebs_gb=request.ebs_gb,
+            )
+            return _response(200, estimate)
         if operation == "create_request":
             key = _header(event, "Idempotency-Key")
             if not key:
@@ -258,6 +334,82 @@ def _route_request(operation: str, event: dict, services: ApiServices) -> dict:
             return _put_budget(event, identity, services)
         if operation == "calibration_summary":
             return _calibration_summary(services)
+        if operation == "state_estimate":
+            from .state_estimation import estimate_handler
+
+            return _response(200, estimate_handler(event, None))
+        if operation == "tau_state":
+            from .tau_eudaci_storage import list_job_events_handler
+
+            result = list_job_events_handler(event, None)
+            reservation = services.ledger.get_reservation(result["job_id"])
+            if reservation.get("team") != identity.team:
+                raise UnauthorizedTeam("job belongs to another team")
+            return _response(200, result)
+        if operation == "telemetry_trace":
+            from .tau_eudaci_storage import list_job_events
+
+            reservation_id = _path_parameter(event, "id")
+            reservation = services.ledger.get_reservation(reservation_id)
+            if reservation.get("team") != identity.team:
+                raise UnauthorizedTeam("resource belongs to another team")
+            resource_ids = list(reservation.get("volume_ids") or [])
+            if reservation.get("instance_id"):
+                resource_ids.insert(0, reservation["instance_id"])
+            state = list_job_events(
+                boto3.resource(
+                    "dynamodb", region_name=os.environ.get("AWS_REGION", "ap-south-1")
+                ).Table(services.reservations_table),
+                reservation_id,
+            )
+            points = [
+                {
+                    "sourceTimestamp": warning["observed_at"],
+                    "observedAt": warning["observed_at"],
+                    "usageIntegral": warning.get("provisional_micro"),
+                    "unit": "micro_usd",
+                    "provenance": "trusted telemetry EarlyWarning event",
+                    "earlyWarning": True,
+                    "thresholdCrossed": True,
+                    "sourceRecordId": warning.get("event_id"),
+                }
+                for warning in state["warnings"]
+            ]
+            resource_id = resource_ids[0] if resource_ids else None
+            reason = None if points and resource_id else (
+                "No AWS resource identity is recorded for this reservation; "
+                "the reservation ID is not an AWS resource ID."
+                if not resource_id else
+                "No trusted telemetry events are linked to this reservation."
+            )
+            return _response(200, {"availability": "available" if points and resource_id else "unavailable", "resourceId": resource_id, "points": points if resource_id else [], "reason": reason})
+        if operation == "evidence_chain":
+            from .evidence_chain import trace_reservation_events
+
+            reservation_id = _path_parameter(event, "id")
+            reservation = services.ledger.get_reservation(reservation_id)
+            if reservation.get("team") != identity.team:
+                raise UnauthorizedTeam("request belongs to another team")
+            return _response(200, trace_reservation_events(services.db, services.reservations_table, reservation))
+        if operation == "release_plan":
+            from calibur_engine.models import SourceRef
+            from calibur_engine.release_policy import ReleasePolicyConfig, plan_release
+
+            from .evidence_chain import billing_delay_history
+
+            as_of = datetime.now(UTC)
+            history = billing_delay_history(services.db, services.reservations_table)
+            if not history:
+                return _response(200, {
+                    "proposal": {"status": "NOT_ESTIMABLE", "reason": "MISSING_VALIDATED_FIRST_AVAILABILITY_AND_CENSORING_TIMESTAMPS", "release_at": None, "retained_amount_micro": None, "limitations": ["Current CUR audit rows preserve manifest revision and commit time but not a validated first-availability timestamp or observation censoring horizon."]},
+                    "mutation": "NONE", "eligible_observation_count": 0,
+                })
+            result = plan_release(
+                completed_at=as_of, committed_amount_micro=0, history=history,
+                as_of=as_of, job_source=SourceRef("team-billing-history", as_of, "Reservations", "validated billing reconciliation history"),
+                config=ReleasePolicyConfig(),
+            )
+            return _response(200, {"proposal": result.to_dict(), "mutation": "NONE", "eligible_observation_count": len(history)})
         if operation == "list_alerts":
             return _list_alerts(event, services)
         return _error(404, "NOT_FOUND", "Unknown API operation")
@@ -283,6 +435,13 @@ def _route_request(operation: str, event: dict, services: ApiServices) -> dict:
         )
     except AdmissionInsufficientBudget as error:
         return _error(409, "INSUFFICIENT_BUDGET", str(error))
+    except AdmissionPolicyDenied as error:
+        return _error(
+            409,
+            "CALIBUR_POLICY_DENIED",
+            str(error),
+            {"calibur_proposal": error.proposal.to_dict()},
+        )
     except AdmissionConflict as error:
         return _error(409, "IDEMPOTENCY_CONFLICT", str(error))
     except BudgetAlreadyExists as error:
@@ -303,6 +462,12 @@ def _route_request(operation: str, event: dict, services: ApiServices) -> dict:
         return _error(400, "VALIDATION_ERROR", str(error))
     except (BotoCoreError, ClientError):
         return _error(503, "SERVICE_UNAVAILABLE", "A required backend service is unavailable")
+    except StateEstimatorConfigurationError:
+        return _error(
+            503,
+            "CALIBUR_ESTIMATOR_UNCONFIGURED",
+            "State estimation is unavailable until an owner-reviewed model configuration is supplied",
+        )
     except (RuntimeError, KeyError, AttributeError, ArithmeticError, IndexError):
         return _error(500, "INTERNAL_ERROR", "The request could not be completed")
 
@@ -439,52 +604,116 @@ def _put_budget(event: dict, identity: VerifiedIdentity, services: ApiServices) 
     return _response(200, {"budget": budget, "replayed": bool(budget.get("replayed", False))})
 
 
-def _calibration_summary(services: ApiServices) -> dict:
+def _load_margin_policies(
+    db: Any, samples_table: str, *, resource_classes: tuple[str, ...] = ("ec2:t3",)
+) -> MarginPolicies:
+    """Load only eligible, final, attributed labels for the admission policy.
+
+    This is deliberately the same source used by the API summary: provisional
+    telemetry and estimates never enter the margin policy.  Rows are loaded in
+    stable ``settled_at`` order, and a revised bill replaces the previous label
+    for the same reservation instead of counting as a second observation.
+    ``split_conformal`` uses only rows explicitly partitioned as CALIBRATION.
+    """
     policies = MarginPolicies()
-    token = None
-    order = 0
-    while True:
-        request = {
-            "TableName": services.samples_table,
-            "KeyConditionExpression": "resource_class = :class",
-            "ExpressionAttributeValues": {":class": {"S": "ec2"}},
-            "ScanIndexForward": True,
-        }
-        if token:
-            request["ExclusiveStartKey"] = token
-        response = services.db.query(**request)
-        for raw in response.get("Items", []):
-            item = _deserialize_item(raw)
-            if not _valid_calibration_item(item):
-                continue
+    # The validated request schema currently permits only t3 instances. Keep
+    # this explicit rather than scanning every historical class into a policy
+    # that cannot be selected by admission.
+    for resource_class in resource_classes:
+        token = None
+        latest: dict[str, tuple[tuple[int, str], dict]] = {}
+        while True:
+            request = {
+                "TableName": samples_table,
+                "KeyConditionExpression": "resource_class = :class",
+                "ExpressionAttributeValues": {":class": {"S": resource_class}},
+                "ScanIndexForward": True,
+            }
+            if token:
+                request["ExclusiveStartKey"] = token
+            response = db.query(**request)
+            for raw in response.get("Items", []):
+                item = _deserialize_item(raw)
+                if not _valid_calibration_item(item):
+                    continue
+                identity = str(
+                    item.get("reservation_id")
+                    or item.get("settlement_id")
+                    or item["settled_at"]
+                )
+                version = int(item.get("settlement_version") or 0)
+                rank = (version, str(item.get("settled_at") or ""))
+                previous = latest.get(identity)
+                if previous is None or rank >= previous[0]:
+                    latest[identity] = (rank, item)
+            token = response.get("LastEvaluatedKey")
+            if not token:
+                break
+
+        ordered = sorted(
+            (entry[1] for entry in latest.values()),
+            key=lambda item: (str(item.get("settled_at") or ""), str(item.get("settlement_id") or "")),
+        )
+        split_ratios: list[float] = []
+        for order, item in enumerate(ordered):
             sample_id = str(
                 item.get("settlement_id") or item.get("sample_id") or item["settled_at"]
             )
             actual = int(item["actual_micro"])
             modeled = int(item["modeled_runtime_micro"])
-            added = policies.add_settlement(
-                "ec2",
+            ratio = actual / modeled
+            if item.get("sample_partition") == "CALIBRATION":
+                split_ratios.append(ratio)
+            policies.add_settlement(
+                resource_class,
                 Sample(
                     settlement_id=sample_id,
-                    ratio=actual / modeled,
+                    ratio=ratio,
                     reserved_micro=int(item["reserved_micro"]),
                     actual_micro=actual,
                     modeled_runtime_micro=modeled,
                     settled_order=order,
                 ),
             )
-            if added:
-                order += 1
-        token = response.get("LastEvaluatedKey")
-        if not token:
-            break
+        policies.set_split_calibration(resource_class, split_ratios)
+    return policies
+
+
+def _load_margin_policies_with_logging(db: Any, samples_table: str) -> MarginPolicies:
+    """Wrap _load_margin_policies with structured error logging for diagnosis."""
+    try:
+        return _load_margin_policies(db, samples_table)
+    except (BotoCoreError, ClientError) as error:
+        structured_log(
+            "M5",
+            "state_estimator",
+            "error",
+            error_category="kalman_config_load_failed",
+            error=type(error).__name__,
+            error_message=str(error)[:200],
+            table=samples_table,
+        )
+        raise
+
+
+def _calibration_summary(services: ApiServices) -> dict:
+    # Admission reads ``ec2:t3`` (the only class the request schema permits),
+    # so the summary must report that same partition or it will always show
+    # zero samples while admissions use a live margin.
+    resource_class = "ec2:t3"
+    policies = _load_margin_policies(
+        services.db, services.samples_table, resource_classes=(resource_class,)
+    )
+    order = len(policies.samples.get(resource_class, []))
     names = ("fixed", "rolling_quantile", "split_conformal", "adaptive")
     return _response(
         200,
         {
-            "resource_class": "ec2",
+            "resource_class": resource_class,
             "sample_count": order,
-            "policies": [{"policy": name, **policies.summary("ec2", name)} for name in names],
+            "policies": [
+                {"policy": name, **policies.summary(resource_class, name)} for name in names
+            ],
             "source": "CostSamples",
         },
     )

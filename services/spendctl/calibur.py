@@ -231,6 +231,8 @@ class DynamoCaliburStateStore:
     gamma: float = 0.02
     target_alpha: float = 0.05
 
+    # The shared Reservations table is keyed with lower-case pk/sk.  Keeping
+    # this state in that table avoids a second, unconnected policy store.
     _PK = "CALIBUR#STATE"
     _SK = "v1"
 
@@ -239,7 +241,7 @@ class DynamoCaliburStateStore:
 
         try:
             response = self.table.get_item(
-                Key={"PK": self._PK, "SK": self._SK},
+                Key={"pk": self._PK, "sk": self._SK},
                 ConsistentRead=True,
             )
         except ClientError as exc:
@@ -257,7 +259,7 @@ class DynamoCaliburStateStore:
         try:
             data = json.loads(raw)
             return MarginPolicies.from_dict(data)
-        except Exception as exc:
+        except (ValueError, TypeError, KeyError) as exc:
             logger.error("calibur.state_deserialise_failed: %s", exc)
             return None
 
@@ -273,16 +275,13 @@ class DynamoCaliburStateStore:
         state_json = json.dumps(policies.to_dict(), separators=(",", ":"))
 
         # Upsert with optimistic version increment.
+        current = self.table.get_item(Key={"pk": self._PK, "sk": self._SK}, ConsistentRead=True).get("Item")
+        version = int(current.get("version", 0)) if current else 0
         try:
             self.table.put_item(
-                Item={
-                    "PK": self._PK,
-                    "SK": self._SK,
-                    "state_json": state_json,
-                },
-                # Unconditional write for now; a version attribute can be
-                # added once the handler is wired to a real Lambda and race
-                # conditions become observable in practice.
+                Item={"pk": self._PK, "sk": self._SK, "state_json": state_json, "version": version + 1},
+                ConditionExpression="attribute_not_exists(pk)" if current is None else "version = :version",
+                **({} if current is None else {"ExpressionAttributeValues": {":version": version}}),
             )
         except ClientError as exc:
             error_code = exc.response.get("Error", {}).get("Code", "")

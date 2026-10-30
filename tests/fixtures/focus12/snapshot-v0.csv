@@ -1,0 +1,2 @@
+BillingPeriodStart,BillingPeriodEnd,ChargePeriodStart,ChargePeriodEnd,ChargeCategory,ChargeClass,ChargeFrequency,BilledCost,EffectiveCost,BillingCurrency,BillingAccountId,SubAccountId,ResourceId,x_ServiceCode,x_Operation,Tags,ServiceName,SkuMeter,ConsumedUnit,PricingCategory
+2026-07-01T00:00:00Z,2026-08-01T00:00:00Z,2026-07-01T00:00:00Z,2026-07-01T01:00:00Z,Usage,,Usage-Based,1.00,1.00,USD,000000000000,000000000000,i-123,AmazonEC2,RunInstances,{},Amazon Elastic Compute Cloud,Instance-Hours,Hrs,Standard

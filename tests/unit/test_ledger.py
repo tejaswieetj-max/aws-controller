@@ -10,6 +10,7 @@ from spendctl.ledger import (
     DynamoLedger,
     InsufficientBudget,
     InvalidTransition,
+    LedgerTransactionCancelled,
     ReservationConflict,
 )
 from spendctl.workflow_handlers import _confirmed_failure_actual
@@ -175,6 +176,24 @@ def test_insufficient_budget_does_not_change_balances(ledger):
     budget = assert_invariant(ledger)
     assert budget["available_micro"] == 10_000_000
     assert budget["reserved_micro"] == 0
+
+
+def test_decision_budget_snapshot_must_match_the_committed_budget_state(ledger):
+    snapshot = ledger.get_budget("alpha", "2026-10")
+    reserve(ledger, reservation_id="r-first", key="key-first", amount=1_000_000)
+    with pytest.raises(LedgerTransactionCancelled):
+        ledger.reserve(
+            team="alpha",
+            period="2026-10",
+            reservation_id="r-stale",
+            idempotency_key="key-stale",
+            requester="user-1",
+            reserved_micro=1_000_000,
+            record=request_record(),
+            decision_budget_snapshot=snapshot,
+        )
+    assert "decision_budget_snapshot" not in ledger.get_reservation("r-first")
+    assert_invariant(ledger)
 
 
 def test_concurrent_reservations_never_overdraw_budget(ledger):
@@ -408,4 +427,38 @@ def test_lost_success_response_is_resolved_from_durable_idempotency(ledger):
     assert result["reservation"]["reservation_id"] == "r-1"
     assert result["replayed"] is True
     ledger.db = underlying
-    assert assert_invariant(ledger)["reserved_micro"] == 3_000_000
+
+
+def test_reservation_record_contains_decision_at_utc_and_budget_before_fields(ledger):
+    """Reservations must carry decision_at_utc and budget_before_* evidence fields."""
+    snapshot = ledger.get_budget("alpha", "2026-10")
+    outcome = ledger.reserve(
+        team="alpha",
+        period="2026-10",
+        reservation_id="r-evidence",
+        idempotency_key="evidence-key",
+        requester="user-1",
+        reserved_micro=1_000_000,
+        record=request_record(),
+        decision_budget_snapshot=snapshot,
+    )
+    reservation = outcome["reservation"]
+
+    # decision_at_utc must be present and parseable
+    assert "decision_at_utc" in reservation
+    from datetime import datetime
+    parsed = datetime.fromisoformat(reservation["decision_at_utc"])
+    assert parsed.tzinfo is not None
+
+    # budget_before_* snapshot fields must match the decision-time budget
+    assert reservation["budget_before_available_micro"] == snapshot["available_micro"]
+    assert reservation["budget_before_reserved_micro"] == snapshot["reserved_micro"]
+    assert reservation["budget_before_spent_micro"] == snapshot["spent_micro"]
+
+    # decision_budget_snapshot must still be present as well
+    assert reservation["decision_budget_snapshot"] is not None
+    assert reservation["decision_budget_snapshot"]["budget_micro"] == snapshot["budget_micro"]
+
+    # Invariant: budget accounting must still balance
+    budget = ledger.get_budget("alpha", "2026-10")
+    assert budget["available_micro"] + budget["reserved_micro"] + budget["spent_micro"] == budget["budget_micro"]

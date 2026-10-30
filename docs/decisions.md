@@ -52,24 +52,35 @@ resource policy remains the narrower operation/tag policy. Caller permission
 for `sts:TagSession` is intentionally left for the M1 verification to prove.
 
 M8 uses an S3 manifest notification to a dedicated reconciler Lambda. The
-manual Data Export and Glue table are still separately configured; the
-`EnableBillingReconciliation` stack parameter defaults to false. A validated
-manifest and a 60-day period-age guard are operational safeguards, not proof of
-final completeness. The handler fails closed on a field/schema mismatch and
-only adjusts reservations with attributable positive usage rows.
+manual Data Export and Glue table are still separately configured. The
+`BillingSchema` stack parameter selects FOCUS 1.2 (`focus`, default) or CUR 2.0
+(`cur`); `EnableBillingReconciliation` defaults to `true` and
+`BillingFinalizationDelayDays` defaults to 60. A validated manifest and the
+period-age guard are operational safeguards, not proof of final completeness.
+The handler fails closed on a field/schema mismatch and only adjusts
+reservations with attributable positive usage rows.
 
 CUR amounts use `line_item_net_unblended_cost` when populated, else
-`line_item_unblended_cost`. Parse with `Decimal`, multiply USD by 1,000,000,
-then round to integer micro-USD with `ROUND_HALF_EVEN`, including signed values.
-Only `Usage` for AmazonEC2/AmazonEBS is in scope. Credits, refunds, discounts,
-taxes, fees, non-usage and unknown services remain excluded/unattributed; no
-team budget is refunded on a negative adjustment or absent row. The ledger
-applies only `new attributable target - previously booked target` and writes
-the settlement and audit record atomically. A later export revision creates a
-new settlement version. `createTimestamp` is used as the monotonic ordering
-field; the ledger rejects an older export revision after a newer one has been
-applied. Its presence and ordering semantics are local fixture assumptions
-pending account verification.
+`line_item_unblended_cost`. FOCUS amounts use `BilledCost`; `EffectiveCost` is
+never substituted because it carries a different amortized-cost semantics.
+Parse with `Decimal`, multiply USD by 1,000,000, then round to integer micro-USD
+with `ROUND_HALF_EVEN`, including signed values. Only `Usage` for
+AmazonEC2/AmazonEBS is in scope. Credits, refunds, discounts, taxes, fees,
+non-usage and unknown services remain excluded/unattributed; no team budget is
+refunded on a negative adjustment or absent row. The ledger applies only
+`new attributable target - previously booked target` and writes the settlement
+and audit record atomically. A later export revision creates a new settlement
+version. CUR uses manifest `createTimestamp`; FOCUS uses `executionId` and the
+S3 delivery-folder timestamp. The ledger rejects an older export revision after
+a newer one has been applied; FOCUS skips it and emits `BillingStaleRevision`.
+
+FOCUS 1.2 has no verified row-level unique key (`InvoiceId` null, `Tags` empty
+in inspected deliveries). A validated manifest is therefore treated as a
+complete snapshot scoped to its declared `dataFiles`; rows are aggregated per
+reservation and legitimate duplicate rows are counted, not deduplicated.
+`additionalOutputFiles` must be empty, and a manifest that declares files but
+yields zero rows fails closed. The EC2 `instance/...` and `volume/...` ARN forms
+are reduced to the bare resource IDs stored in the ledger mapping.
 
 ## Crash-safe workflow start
 

@@ -1,161 +1,402 @@
-import { useEffect, useMemo, useState } from 'react';
-import type React from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSpendctlAuth } from './auth';
-import { SpendctlApi, formatUsd } from './api.mjs';
-import { clearPendingSubmission, prepareSubmission, readPendingSubmission } from './idempotency.mjs';
-import type { Alert, Budget, Estimate, Reservation } from './types';
+import { getSpendctlRepository, isSyntheticDataMode, isMockEngineMode } from './api/factory';
+import type { AdmissionRequestPayload, CaliburMetrics } from './api/repository';
+import { clearPendingSubmission } from './idempotency.mjs';
+import { groupList } from './lib/format';
+import { loadLocalRequests } from './lib/local-requests';
+import type { Alert, Budget, Reservation } from './types';
+import { RequestDetail } from './components/RequestDetail';
+import { LoadingScreen, Shell, pageMeta, type Page } from './components/Shell';
+import { SignIn, SetupNeeded } from './components/SignIn';
+import { InlineNotice } from './components/ui';
+import { OverviewPage } from './pages/Overview';
+import { EstimatePage } from './pages/Estimate';
+import { RequestsPage } from './pages/Requests';
+import { BudgetsPage } from './pages/Budgets';
+import { AlertsPage } from './pages/Alerts';
+import { CaliburPage } from './pages/Calibur';
 
-type Page = 'dashboard' | 'estimate' | 'requests' | 'budgets' | 'alerts' | 'research';
-type PendingSubmission = { key: string; fingerprint: string; payload: Record<string, unknown> };
-const pageLabels: Record<Page, string> = { dashboard: 'Overview', estimate: 'Cost estimator', requests: 'Requests', budgets: 'Budgets', alerts: 'Alerts', research: 'Calibration' };
+type Notice = { message: string; tone: 'info' | 'success' | 'warning' | 'danger' };
+
+const validPages = new Set<Page>(Object.keys(pageMeta) as Page[]);
 
 export function App() {
   const auth = useSpendctlAuth();
-  const [page, setPage] = useState<Page>('dashboard');
-  const [notice, setNotice] = useState('');
-  const [team, setTeam] = useState('');
+  const synthetic = isSyntheticDataMode();
+  const mockEngine = isMockEngineMode();
+  const [page, setPage] = useState<Page>(() => initialPage());
   const [budget, setBudget] = useState<Budget | null>(null);
+  const [budgetError, setBudgetError] = useState<string | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [reservationsError, setReservationsError] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [summary, setSummary] = useState<{ sample_count: number; policies: unknown[] } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [refreshToken, setRefreshToken] = useState(0);
-  const [instanceType, setInstanceType] = useState('t3.micro');
-  const [ebsGb, setEbsGb] = useState(8);
-  const [runtime, setRuntime] = useState(1);
-  const [purpose, setPurpose] = useState('');
-  const [estimate, setEstimate] = useState<Estimate | null>(null);
-  const [budgetUsd, setBudgetUsd] = useState('');
-  const [selectedRequest, setSelectedRequest] = useState<Reservation | null>(null);
-  const [pendingSubmission, setPendingSubmission] = useState<PendingSubmission | null>(() => readPendingSubmission(sessionStorage));
+  const [alertsError, setAlertsError] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<CaliburMetrics | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
 
   const claims = auth.user?.profile ?? {};
-  const trustedTeam = String(claims['custom:team'] ?? claims.team ?? '');
-  const groupsClaim = claims['cognito:groups'];
-  const groups = Array.isArray(groupsClaim) ? groupsClaim.map(String) : typeof groupsClaim === 'string' ? groupsClaim.replace(/[\[\]'\"]/g, '').split(/[ ,]+/) : [];
-  const isAdmin = groups.includes('admins');
-  const api = useMemo(() => new SpendctlApi(import.meta.env.VITE_API_BASE_URL ?? '', async () => {
-    if (!auth.user?.id_token) throw new Error('Your session expired. Sign in again.');
-    return auth.user.id_token;
-  }), [auth.user?.id_token]);
+  // Synthetic mode is an explicitly selected browser-only provider. Real mode
+  // always derives team scope from the authenticated JWT claim.
+  const team = (synthetic || mockEngine) ? 'alpha-development' : String(claims['custom:team'] ?? claims.team ?? '');
+  const groups = groupList(claims['cognito:groups']);
+  const isDeveloper = synthetic || mockEngine || groups.includes('developers');
+  const isAdmin = synthetic || mockEngine || groups.includes('admins');
+  const canViewInsights = isDeveloper || isAdmin;
+  const displayName = String(claims.name ?? claims.email ?? 'Signed in');
+  const email = String(claims.email ?? 'Authenticated session');
+  const role = isAdmin ? 'Administrator' : isDeveloper ? 'Developer' : 'User';
+  const initials = initialsFrom(String(claims.name ?? claims.email ?? 'U'));
 
-  useEffect(() => { setTeam(trustedTeam); }, [trustedTeam]);
+const mergedReservations: Reservation[] = useMemo(
+  () => {
+    const localRequests = loadLocalRequests();
+    const liveReservationIds = new Set(reservations.map((row) => row.reservation_id));
+    const localForTeam = localRequests.filter((row) => row.team === team);
+    const localOnly = localForTeam.filter((row) => !liveReservationIds.has(row.reservation_id));
+
+    const localAsReservation: Reservation[] = localOnly.map((row) => ({
+      reservation_id: row.reservation_id,
+      team: row.team,
+      status: row.status,
+      created_at: row.created_at,
+      reserved_micro: row.reserved_micro,
+      estimate_micro: row.estimate_micro,
+      resource: row.resource,
+      purpose: row.purpose,
+      region: row.region,
+      planned_hours: row.planned_hours,
+      price_source: row.price_source,
+      margin_policy: row.margin_policy,
+      margin: row.margin,
+      workflow_start_state: row.workflow_start_state,
+      workflow_execution_status: row.workflow_execution_status,
+    }));
+    return [...reservations, ...localAsReservation];
+  },
+  [reservations, team],
+);
+
+const adjustedBudget: Budget | null = useMemo(
+  () => {
+    if (!budget) return null;
+    const localRequests = loadLocalRequests();
+    const liveReservationIds = new Set(reservations.map((row) => row.reservation_id));
+    const localForTeam = localRequests.filter((row) => row.team === team);
+    const localOnly = localForTeam.filter((row) => !liveReservationIds.has(row.reservation_id));
+    const localReservedTotal = localOnly.reduce((sum, row) => sum + row.reserved_micro, 0);
+    const localRequestCount = localOnly.length;
+
+    return {
+      ...budget,
+      available_micro: Math.max(0, budget.available_micro - localReservedTotal),
+      reserved_micro: budget.reserved_micro + localReservedTotal,
+      open_reservations: (budget.open_reservations ?? 0) + localRequestCount,
+    };
+  },
+  [budget, reservations, team],
+);
+
+  const repository = useMemo(
+    () =>
+      getSpendctlRepository({
+        baseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
+        getToken: async () => {
+          if (!auth.user?.id_token) throw new Error('Your session expired. Sign in again.');
+          return auth.user.id_token;
+        },
+      }),
+    [auth.user?.id_token],
+  );
+
   useEffect(() => {
-    const handleUnauthorized = () => { void auth.removeUser(); };
-    window.addEventListener('spendctl:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('spendctl:unauthorized', handleUnauthorized);
+    const onUnauthorized = () => {
+      void auth.removeUser();
+      setNotice({ message: 'Your session expired. Sign in again to continue.', tone: 'warning' });
+    };
+    window.addEventListener('spendctl:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('spendctl:unauthorized', onUnauthorized);
   }, [auth.removeUser]);
+
   useEffect(() => {
-    if (!auth.isAuthenticated || !team || page === 'estimate') return;
-    let active = true;
-    setBusy(true); setNotice('');
-    const jobs: Promise<unknown>[] = [];
-    if (['dashboard', 'budgets'].includes(page)) jobs.push(api.budget(team).then(r => { if (active) setBudget(r.budget); }));
-    if (['dashboard', 'requests'].includes(page)) jobs.push(api.reservations().then(r => { if (active) setReservations(r.items); }));
-    if (page === 'alerts' && isAdmin) jobs.push(api.alerts().then(r => { if (active) setAlerts(r.items); }));
-    if (page === 'research' && isAdmin) jobs.push(api.calibration().then(r => { if (active) setSummary(r); }));
-    Promise.all(jobs).catch(e => active && setNotice(errorText(e))).finally(() => active && setBusy(false));
-    return () => { active = false; };
-  }, [api, auth.isAuthenticated, isAdmin, page, team, refreshToken]);
+    const onHashChange = () => setPage(initialPage());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
-  if (auth.isLoading || auth.activeNavigator) return <main className="center"><div className="spinner" aria-label="Loading sign-in" /> Loading secure session…</main>;
-  if (!auth.isAuthenticated && !auth.isConfigured) return <main className="center"><section className="auth-card"><div className="brand-mark">S</div><p className="eyebrow">LOCAL PREVIEW</p><h1>Sign-in setup needed</h1><p role="status">The frontend is running, but it is not connected to Cognito yet. Copy <code>.env.example</code> to <code>.env.local</code> and set the Cognito hosted UI domain and public app client ID. Set the API base URL too to load live project data.</p><button disabled title="Configure Cognito before signing in">Sign-in unavailable until configured</button><small>No AWS connection is made by this preview.</small></section></main>;
-  if (auth.error) return <main className="center"><section className="auth-card"><h1>Sign-in failed</h1><p role="alert">{auth.error.message}</p><button onClick={() => auth.signinRedirect()}>Try again</button></section></main>;
-  if (!auth.isAuthenticated) return <main className="center"><section className="auth-card"><div className="brand-mark">S</div><p className="eyebrow">CLOUD SPEND CONTROL</p><h1>Spend with confidence.</h1><p>Reserve budget before infrastructure starts. Your team access is verified by Cognito and the API.</p><button onClick={() => auth.signinRedirect()}>Continue with secure sign-in</button><small>Sign-in uses your configured Cognito hosted UI.</small></section></main>;
-  if (!trustedTeam) return <main className="center"><section className="auth-card"><h1>Team claim missing</h1><p role="alert">Your verified sign-in has no team claim. Ask an administrator to assign your team.</p><button className="secondary" onClick={() => auth.signoutRedirect()}>Sign out</button></section></main>;
-
-  const refresh = () => { setNotice(''); setRefreshToken(value => value + 1); };
-  const runEstimate = async (event: React.FormEvent) => {
-    event.preventDefault(); setBusy(true); setNotice(''); setEstimate(null);
-    try { setEstimate(await api.estimate({ team, instance_type: instanceType, region: 'ap-south-1', ebs_gb: ebsGb, duration_hours: runtime, purpose })); }
-    catch (e) { setNotice(errorText(e)); }
-    finally { setBusy(false); }
-  };
-  const submitRequest = async () => {
-    if (!estimate || !window.confirm(`Reserve ${formatUsd(estimate.total_micro)} estimate using the 1.10 margin and start the managed request?`)) return;
-    setBusy(true); setNotice('');
-    const payload = { team, instance_type: instanceType, region: 'ap-south-1', ebs_gb: ebsGb, duration_hours: runtime, purpose };
-    let pending: PendingSubmission | null = null;
-    try {
-      pending = prepareSubmission(sessionStorage, payload);
-      setPendingSubmission(pending);
-      const result = await api.submit(payload, pending.key);
-      clearPendingSubmission(sessionStorage);
-      setPendingSubmission(null);
-      setNotice(`Request ${result.reservation_id} · ${result.reservation.status} · ${result.reservation.workflow_start_state ?? 'workflow pending'}`);
-      setPage('requests');
-    } catch (e) {
-      const message = errorText(e);
-      const unknown = Boolean((e as { pendingUnknown?: boolean }).pendingUnknown);
-      if (!unknown) { clearPendingSubmission(sessionStorage); setPendingSubmission(null); }
-      else setPendingSubmission(pending ?? (e as { pending?: PendingSubmission }).pending ?? readPendingSubmission(sessionStorage));
-      setNotice(unknown ? `${message} The same idempotency key is retained for a safe retry.` : message);
-    } finally { setBusy(false); }
-  };
-  const retryPendingSubmission = async () => {
-    if (!pendingSubmission || pendingSubmission.payload.team !== team) {
-      setNotice('The unresolved submission belongs to a different verified team. Sign in with its original team to reconcile it.');
-      return;
+  useEffect(() => {
+    if (synthetic || mockEngine) return;
+    if ((page === 'alerts' && !isAdmin) || (page === 'calibur' && !canViewInsights)) {
+      navigate('overview');
     }
-    setBusy(true); setNotice('');
-    try {
-      const result = await api.submit(pendingSubmission.payload, pendingSubmission.key);
-      clearPendingSubmission(sessionStorage);
-      setPendingSubmission(null);
-      setNotice(`Request ${result.reservation_id} · ${result.reservation.status} · ${result.reservation.workflow_start_state ?? 'workflow pending'}`);
-      setPage('requests');
-    } catch (e) {
-      if (!(e as { pendingUnknown?: boolean }).pendingUnknown) {
-        clearPendingSubmission(sessionStorage); setPendingSubmission(null);
-      }
-      setNotice(`${errorText(e)} The original idempotency key is retained when outcome is still unknown.`);
-    } finally { setBusy(false); }
-  };
-  const cancelRequest = async (row: Reservation) => {
-    if (!window.confirm(`Request cancellation for ${row.reservation_id}? Cleanup runs asynchronously; funds remain reserved until verified.`)) return;
-    setBusy(true); setNotice('');
-    try { const result = await api.cancel(row.reservation_id); setNotice(`Cancellation accepted. Cleanup: ${result.cleanup_state}.`); setPage('dashboard'); }
-    catch (e) { setNotice(errorText(e)); }
-    finally { setBusy(false); }
-  };
-  const saveBudget = async (event: React.FormEvent) => {
-    event.preventDefault(); setBusy(true); setNotice('');
-    try { await api.updateBudget(team, budgetUsd); setNotice('Budget created for this team. Existing budgets are never reset.'); setPage('budgets'); }
-    catch (e) { setNotice(errorText(e)); }
-    finally { setBusy(false); }
-  };
+  }, [canViewInsights, isAdmin, mockEngine, page, synthetic]);
 
-  return <div className="shell">
-    <aside className="sidebar"><div className="brand"><span className="brand-mark">S</span><span>spendctl<small>FINANCIAL OPERATIONS</small></span></div><div className="team-chip"><span className="status-dot" />{team}</div><nav aria-label="Main navigation">{(Object.keys(pageLabels) as Page[]).filter(p => (p !== 'alerts' && p !== 'research') || isAdmin).map(p => <button key={p} className={page === p ? 'nav-item active' : 'nav-item'} onClick={() => setPage(p)}><NavIcon name={p} />{pageLabels[p]}</button>)}</nav><div className="sidebar-foot"><div className="avatar">{String(claims.email ?? 'U').slice(0, 1).toUpperCase()}</div><div className="user-label">{String(claims.email ?? 'Signed in')}<small>{isAdmin ? 'Administrator' : 'Developer'}</small></div><button className="icon-button" aria-label="Sign out" onClick={() => auth.signoutRedirect()}>↗</button></div></aside>
-    <main className="main"><header className="topbar"><div><span className="eyebrow">SPENDCTL / {pageLabels[page].toUpperCase()}</span><h1>{page === 'dashboard' ? 'Overview' : pageLabels[page]}</h1></div><div className="top-actions"><span className="environment-pill"><span className="status-dot" />SECURE API</span><button className="secondary refresh" onClick={refresh} disabled={busy}>↻ <span>Refresh</span></button></div></header>
-      {notice && <div className="notice" role="status">{notice}</div>}
-      {pendingSubmission && <div className="notice warning" role="status">A request submission is awaiting reconciliation. {pendingSubmission.payload.team === team ? <button className="text-button" disabled={busy} onClick={retryPendingSubmission}>Retry the same request</button> : <span>Sign in with its original verified team before retrying.</span>}</div>}
-      {busy && <div className="loading-bar" role="status">Syncing secure account data…</div>}
-      {!team && <div className="notice warning">Your session has no team claim.</div>}
-      {page === 'dashboard' && <Dashboard budget={budget} reservations={reservations} onPage={setPage} />}
-      {page === 'estimate' && <section className="panel estimator"><div className="panel-heading"><div><span className="eyebrow">PLAN A MANAGED RESOURCE</span><h2>Estimate your spend</h2><p>Region and supported machine sizes are fixed by policy.</p></div><span className="tag">Mumbai · ap-south-1</span></div><div className="estimate-layout"><form onSubmit={runEstimate} className="form-grid"><label>Instance type<select value={instanceType} onChange={e => setInstanceType(e.target.value)}><option>t3.micro</option><option>t3.small</option></select></label><label>gp3 storage (GB)<input type="number" min={1} max={30} value={ebsGb} onChange={e => setEbsGb(Number(e.target.value))} required /></label><label>Runtime (hours)<input type="number" min={1} max={24} value={runtime} onChange={e => setRuntime(Number(e.target.value))} required /></label><label className="wide">Purpose<input value={purpose} onChange={e => setPurpose(e.target.value)} minLength={3} maxLength={256} placeholder="e.g. temporary QA environment" required /></label><button disabled={busy} type="submit">{busy ? 'Calculating…' : 'Calculate estimate'} <span>→</span></button></form><div className="estimate-card">{estimate ? <><span className="eyebrow">ESTIMATE BREAKDOWN</span><h3>{formatUsd(estimate.total_micro)}</h3><Breakdown label="Compute" value={estimate.compute_micro} /><Breakdown label="gp3 storage" value={estimate.storage_micro} /><Breakdown label="Reserve at 1.10×" value={estimate.reserve_micro ?? Number((BigInt(estimate.total_micro) * 11n + 9n) / 10n)} strong /><p className="provenance">Pricing: {estimate.price_source ?? estimate.source ?? 'provider unreported'}{estimate.price_snapshot_id ? ` · ${estimate.price_snapshot_id}` : ''}</p>{(estimate.price_source ?? estimate.source)?.includes('fallback') && <p className="warning-text">Fallback price is unverified. Treat this as an estimate, not a live quote.</p>}<button className="submit-request" disabled={busy} onClick={submitRequest}>Review and submit request <span>→</span></button></> : <div className="estimate-empty"><div className="empty-icon">◈</div><h3>Your estimate will appear here</h3><p>Enter a supported configuration to see compute and storage separately.</p></div>}</div></div></section>}
-      {page === 'requests' && <section className="panel"><PanelTitle eyebrow="TEAM ACTIVITY" title="Requests & reservations" count={reservations.length} /><ReservationTable rows={reservations} onCancel={cancelRequest} onDetails={async row => { setBusy(true); try { setSelectedRequest((await api.requestById(row.reservation_id)).request); } catch (e) { setNotice(errorText(e)); } finally { setBusy(false); } }} />{!reservations.length && !busy && <Empty title="No requests yet" body="Create a cost estimate to start a managed request." action={() => setPage('estimate')} />}</section>}
-      {page === 'budgets' && <><section className="panel"><PanelTitle eyebrow="MONTHLY CONTROL" title="Team budget" /><BudgetView budget={budget} /></section>{isAdmin && <section className="panel admin-form"><span className="eyebrow">ADMINISTRATOR ACTION</span><h2>Create a monthly budget</h2><p>Creates a budget only if one does not already exist for the month.</p><form onSubmit={saveBudget}><label>Budget in USD<input value={budgetUsd} onChange={e => setBudgetUsd(e.target.value)} inputMode="decimal" pattern="[0-9]+(\.[0-9]{1,6})?" placeholder="250.00" required /></label><button disabled={busy}>Create budget</button></form></section>}</>}
-      {page === 'alerts' && <section className="panel"><PanelTitle eyebrow="ADMINISTRATOR VIEW" title="Active alerts" count={alerts.length} />{alerts.length ? <div className="alert-list">{alerts.map(a => <article className="alert-row" key={a.alert_id}><span className="alert-icon">!</span><div><strong>{a.alert_type}</strong><p>{JSON.stringify(a.details ?? {})}</p></div><time>{a.created_at ? new Date(a.created_at).toLocaleString() : 'Time unavailable'}</time></article>)}</div> : <Empty title="No alerts returned" body="The API returned no alert records for this account." />}</section>}
-      {page === 'research' && <section className="panel"><PanelTitle eyebrow="READ-ONLY CALIBRATION" title="Reserve policy evidence" /><div className="research-banner"><strong>Recommendations only</strong><span>This view cannot change production reserve policy. API-reported CostSamples require live AWS verification.</span></div>{summary ? <><div className="metric-grid"><Metric label="Final attributed samples" value={String(summary.sample_count)} /><Metric label="Current production reserve" value="1.10×" /><Metric label="Data source" value="CostSamples" /></div><div className="policy-grid">{summary.policies.map((p, i) => <article className="policy-card" key={i}><pre>{JSON.stringify(p, null, 2)}</pre></article>)}</div>{summary.sample_count === 0 && <div className="notice warning">No final attributed calibration samples are available. No values are fabricated.</div>}</> : !busy && <Empty title="Calibration unavailable" body="Only administrators can load the secured calibration summary." />}</section>}
-      <footer className="footer">Financial decisions use integer micro-USD on the server. Prices and account activity depend on configured AWS services.</footer>
-      {selectedRequest && <div className="modal-backdrop" role="presentation" onClick={() => setSelectedRequest(null)}><section className="request-modal" role="dialog" aria-modal="true" aria-labelledby="request-modal-title" onClick={e => e.stopPropagation()}><button className="modal-close" aria-label="Close request details" onClick={() => setSelectedRequest(null)}>×</button><span className="eyebrow">RESERVATION DETAILS</span><h2 id="request-modal-title">{selectedRequest.reservation_id}</h2><p>Status: <b>{selectedRequest.status}</b> · Workflow: <b>{selectedRequest.workflow_start_state ?? selectedRequest.workflow_execution_status ?? 'unknown'}</b></p><pre>{JSON.stringify(selectedRequest, null, 2)}</pre>{selectedRequest.status === 'ACTIVE' && <button className="danger-fill" onClick={() => { setSelectedRequest(null); void cancelRequest(selectedRequest); }}>Request cancellation</button>}</section></div>}
-    </main>
-  </div>;
+  useEffect(() => {
+    if ((!synthetic && !mockEngine && !auth.isAuthenticated) || !team) return;
+    let active = true;
+    setFetching(true);
+    setBudgetError(null);
+    setReservationsError(null);
+
+    const budgetTask = repository
+      .getBudgets(team)
+      .then(rows => {
+        if (active) setBudget(rows[0] ?? null);
+      })
+      .catch(cause => {
+        if (active) setBudgetError(errorMessage(cause));
+      });
+
+    const reservationTask = repository
+      .getLedgerEntries()
+      .then(rows => {
+        if (active) setReservations([...rows]);
+      })
+      .catch(cause => {
+        if (active) setReservationsError(errorMessage(cause));
+      });
+
+    const tasks: Promise<unknown>[] = [budgetTask, reservationTask];
+    if (page === 'alerts' && isAdmin) {
+      setAlertsError(null);
+      tasks.push(
+        repository
+          .getAlerts()
+          .then(rows => {
+            if (active) setAlerts([...rows]);
+          })
+          .catch(cause => {
+            if (active) setAlertsError(errorMessage(cause));
+          }),
+      );
+    }
+    if (page === 'calibur' && canViewInsights) {
+      setMetricsError(null);
+      tasks.push(
+        repository
+          .getCaliburMetrics()
+          .then(value => {
+            if (active) setMetrics(value);
+          })
+          .catch(cause => {
+            if (active) setMetricsError(errorMessage(cause));
+          }),
+      );
+    }
+
+    void Promise.allSettled(tasks).finally(() => {
+      if (active) setFetching(false);
+    });
+    return () => {
+      active = false;
+    };
+    }, [auth.isAuthenticated, canViewInsights, isAdmin, mockEngine, page, repository, synthetic, team, version]);
+
+  const navigate = useCallback((next: Page) => {
+    setPage(next);
+    if (window.location.hash !== `#${next}`) {
+      window.history.replaceState(null, '', `#${next}`);
+    }
+  }, []);
+
+  const notify = useCallback(
+    (message: string, tone: Notice['tone'] = 'info') => setNotice({ message, tone }),
+    [],
+  );
+
+  const refresh = useCallback(() => {
+    setNotice(null);
+    setVersion(value => value + 1);
+  }, []);
+
+  const openRequest = useCallback((reservation: Reservation) => {
+    setSelectedRequest(reservation.reservation_id);
+  }, []);
+
+  const handleSubmitted = useCallback(
+    (reservation: Reservation) => {
+      setSelectedRequest(reservation.reservation_id);
+      navigate('requests');
+      setVersion(value => value + 1);
+    },
+    [navigate],
+  );
+
+  if (!(synthetic || mockEngine) && (auth.isLoading || auth.activeNavigator)) {
+    return <LoadingScreen label="Loading secure session…" />;
+  }
+
+  if (!(synthetic || mockEngine) && !auth.isAuthenticated) {
+    if (!auth.isConfigured && !auth.error) return <SetupNeeded />;
+    return <SignIn error={auth.error} onSignIn={() => void auth.signinRedirect()} />;
+  }
+
+  if (!team) {
+    return (
+      <main className="fullscreen">
+        <section className="auth-card">
+          <span className="brand-mark large">S</span>
+          <span className="eyebrow">Identity incomplete</span>
+          <h1>Team claim missing</h1>
+          <p>Your verified session has no team claim. Ask an administrator to assign your team, then sign in again.</p>
+          <button className="button primary" onClick={() => void auth.signoutRedirect()}>Sign out</button>
+        </section>
+      </main>
+    );
+  }
+
+  const overviewError = budgetError && reservationsError
+    ? `${budgetError} ${reservationsError}`
+    : budgetError ?? reservationsError;
+  const pageError = page === 'alerts' ? alertsError : page === 'calibur' ? metricsError : overviewError;
+
+  return (
+    <>
+      <Shell
+        page={page}
+        onNavigate={navigate}
+        team={team}
+        displayName={displayName}
+        email={email}
+        role={role}
+        initials={initials}
+        isAdmin={isAdmin}
+        canViewInsights={canViewInsights}
+        synthetic={synthetic}
+        mockEngine={mockEngine}
+        onRefresh={refresh}
+        refreshing={fetching}
+        onSignOut={() => {
+          if (!(synthetic || mockEngine)) {
+            void auth.signoutRedirect();
+            return;
+          }
+          // Mock engine and synthetic mode have no session to end. Reloading
+          // discards the in-memory state and any unresolved submission.
+          clearPendingSubmission(sessionStorage);
+          window.location.reload();
+        }}
+      >
+        {(synthetic || mockEngine) && (
+          <InlineNotice tone="info" title="Offline mock engine">
+            This session is running the client-side mock engine. Admission decisions, budget holds, and workflow
+            states are simulated in browser memory. No Spendctl API, ledger, AWS resource, or research pipeline
+            is being contacted.
+          </InlineNotice>
+        )}
+
+        {notice && (
+          <InlineNotice tone={notice.tone} onClose={() => setNotice(null)}>
+            {notice.message}
+          </InlineNotice>
+        )}
+
+        {page === 'overview' && (
+          <OverviewPage
+            budget={adjustedBudget}
+            reservations={mergedReservations}
+            synthetic={synthetic}
+            mockEngine={mockEngine}
+            loading={fetching}
+            error={pageError}
+            onNewRequest={() => navigate('estimate')}
+            onOpenRequests={() => navigate('requests')}
+            onOpenRequest={openRequest}
+          />
+        )}
+
+        {page === 'estimate' && (
+          <EstimatePage
+            repository={repository}
+            team={team}
+            budget={adjustedBudget}
+            isAdmin={isAdmin}
+            synthetic={synthetic}
+            mockEngine={mockEngine}
+            onSubmitted={handleSubmitted}
+            onNotice={notify}
+          />
+        )}
+
+        {page === 'requests' && (
+          <RequestsPage
+            rows={mergedReservations}
+            loading={fetching}
+            error={reservationsError}
+            onOpen={openRequest}
+            onNewRequest={() => navigate('estimate')}
+            onRefresh={refresh}
+            refreshing={fetching}
+          />
+        )}
+
+        {page === 'budgets' && (
+          <BudgetsPage
+            repository={repository}
+            team={team}
+            budget={adjustedBudget}
+            loading={fetching}
+            error={budgetError}
+            isAdmin={isAdmin}
+            onRefresh={refresh}
+            onNotice={notify}
+          />
+        )}
+
+        {page === 'alerts' && isAdmin && (
+          <AlertsPage
+            alerts={alerts}
+            loading={fetching}
+            error={alertsError}
+            onRefresh={refresh}
+            refreshing={fetching}
+            synthetic={synthetic}
+            mockEngine={mockEngine}
+          />
+        )}
+
+        {page === 'calibur' && canViewInsights && (
+          <CaliburPage
+            metrics={metrics}
+            loading={fetching}
+            error={metricsError}
+            onRefresh={refresh}
+            synthetic={synthetic}
+            mockEngine={mockEngine}
+          />
+        )}
+      </Shell>
+
+      <RequestDetail
+        repository={repository}
+        reservationId={selectedRequest}
+        budget={budget}
+        synthetic={synthetic}
+        mockEngine={mockEngine}
+        onClose={() => setSelectedRequest(null)}
+        onChanged={() => setVersion(value => value + 1)}
+        onNotice={notify}
+      />
+    </>
+  );
 }
 
-function Dashboard({ budget, reservations, onPage }: { budget: Budget | null; reservations: Reservation[]; onPage: (page: Page) => void }) {
-  const total = budget?.budget_micro ?? 0;
-  const used = (budget?.reserved_micro ?? 0) + (budget?.spent_micro ?? 0);
-  const utilization = total ? Math.min(100, used / total * 100) : 0;
-  return <>{budget && utilization >= 50 && <div className={`notice ${utilization >= 80 ? 'warning' : ''}`}>{utilization >= 100 ? 'Budget is fully utilized.' : utilization >= 80 ? 'Budget utilization has reached the 80% threshold.' : 'Budget utilization has reached the 50% threshold.'} These indicators use the latest API budget snapshot.</div>}<section className="balance-hero"><div><span className="eyebrow">AVAILABLE TO RESERVE · {budget?.period ?? 'CURRENT PERIOD'}</span><strong>{formatUsd(budget?.available_micro)}</strong><p>Remaining budget for {budget?.period ?? 'this period'}</p></div><div className="utilization"><div className="ring" style={{ '--progress': `${utilization}%` } as React.CSSProperties}><span>{Math.round(utilization)}<small>%</small></span></div><span>Budget utilized</span></div></section>{!budget && <div className="notice warning">No monthly budget is available for this team. Ask an administrator to create one before submitting requests.</div>}<div className="metric-grid"><Metric label="Total budget" value={formatUsd(budget?.budget_micro)} /><Metric label="Reserved" value={formatUsd(budget?.reserved_micro)} /><Metric label="Spent" value={formatUsd(budget?.spent_micro)} /><Metric label="Requests" value={String(reservations.length)} /></div><section className="panel recent"><PanelTitle eyebrow="LATEST ACTIVITY" title="Recent requests" action={<button className="text-button" onClick={() => onPage('requests')}>View all →</button>} /><ReservationTable rows={reservations.slice(0, 5)} onCancel={() => undefined} compact /><div className="panel-bottom"><button className="secondary" onClick={() => onPage('requests')}>Open requests</button><button onClick={() => onPage('estimate')}>New estimate <span>→</span></button></div></section></>;
+function initialPage(): Page {
+  const hash = window.location.hash.replace(/^#/, '') as Page;
+  return validPages.has(hash) ? hash : 'overview';
 }
 
-function BudgetView({ budget }: { budget: Budget | null }) { if (!budget) return <Empty title="No budget found" body="Ask an administrator to create this team's monthly budget." />; return <><div className="balance-hero budget-hero"><div><span className="eyebrow">TOTAL MONTHLY BUDGET · {budget.period}</span><strong>{formatUsd(budget.budget_micro)}</strong><p>Available + reserved + spent</p></div><span className="tag good">Ledger-reported</span></div><div className="metric-grid"><Metric label="Available" value={formatUsd(budget.available_micro)} /><Metric label="Reserved" value={formatUsd(budget.reserved_micro)} /><Metric label="Spent" value={formatUsd(budget.spent_micro)} /></div></>; }
-function ReservationTable({ rows, onCancel, onDetails, compact = false }: { rows: Reservation[]; onCancel: (row: Reservation) => void; onDetails?: (row: Reservation) => void; compact?: boolean }) { if (!rows.length) return null; return <div className="table-wrap"><table><thead><tr><th>Request</th><th>Configuration</th><th>Reserve</th><th>Status</th><th>Workflow</th>{!compact && <th>Action</th>}</tr></thead><tbody>{rows.map(row => <tr key={row.reservation_id}><td><strong>{row.reservation_id.slice(0, 16)}…</strong><small>{row.created_at ? new Date(row.created_at).toLocaleDateString() : 'Recent'}</small></td><td>{row.resource?.instance_type ?? 'EC2'}<small>{row.resource?.ebs_gb ?? '—'} GB gp3</small></td><td>{formatUsd(row.reserved_micro)}</td><td><span className={`status ${row.status.toLowerCase()}`}>{row.status}</span></td><td>{row.workflow_start_state ?? row.workflow_execution_status ?? '—'}</td>{!compact && <td><button className="text-button" onClick={() => onDetails?.(row)}>Details</button>{row.status === 'ACTIVE' && <button className="text-button danger" onClick={() => onCancel(row)}>Cancel</button>}</td>}</tr>)}</tbody></table></div>; }
-function PanelTitle({ eyebrow, title, count, action }: { eyebrow: string; title: string; count?: number; action?: React.ReactNode }) { return <div className="panel-title"><div><span className="eyebrow">{eyebrow}</span><h2>{title} {count !== undefined && <span className="count">{count}</span>}</h2></div>{action}</div>; }
-function Metric({ label, value }: { label: string; value: string }) { return <article className="metric"><span>{label}</span><strong>{value}</strong></article>; }
-function Breakdown({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) { return <div className={strong ? 'breakdown strong' : 'breakdown'}><span>{label}</span><b>{formatUsd(value)}</b></div>; }
-function Empty({ title, body, action }: { title: string; body: string; action?: () => void }) { return <div className="empty-state"><div className="empty-icon">⌁</div><h3>{title}</h3><p>{body}</p>{action && <button className="secondary" onClick={action}>Create estimate</button>}</div>; }
-function NavIcon({ name }: { name: Page }) { const icons: Record<Page, string> = { dashboard: '▦', estimate: '◈', requests: '≡', budgets: '◷', alerts: '△', research: '⌁' }; return <span className="nav-icon" aria-hidden="true">{icons[name]}</span>; }
-function errorText(error: unknown) { return error instanceof Error ? error.message : 'Something went wrong. Please retry.'; }
+function initialsFrom(value: string): string {
+  const parts = value.split(/[\s@._-]+/).filter(Boolean);
+  const letters = parts.slice(0, 2).map(part => part.charAt(0).toUpperCase()).join('');
+  return letters || 'U';
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return 'The account data could not be loaded.';
+}

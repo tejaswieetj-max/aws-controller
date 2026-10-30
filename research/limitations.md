@@ -1,65 +1,136 @@
 # Research Limitations and Feasibility Analysis
 
-## 1. Feasibility and Verification Status Framework
+## 1. Verification status vocabulary
 
-To maintain scientific integrity, all system claims, implementation components, and data sources within the Spendctl and CALIBUR research repository are categorized under four explicit status designations:
+- **Implemented and locally tested:** exercised by repository unit tests. This is
+  software evidence, not empirical validity.
+- **Implemented, not empirically validated:** code exists but no linked real
+  observations support its use in a research claim.
+- **Planned:** designed but not implemented.
+- **Blocked:** depends on unavailable data, approval, or infrastructure.
+- **Not testable with current data:** the required real observations do not exist.
 
-- **Verified:** Supported directly by inspected repository code, executed unit tests, or confirmed empirical data.
-- **Planned:** Architecturally designed and specified, but not yet fully implemented or validated.
-- **Unknown:** Requires further empirical evidence or telemetry collection before feasibility can be confirmed.
-- **Blocked:** Depends on unfulfilled prerequisites or unresolved infrastructure decisions.
+## 2. Current status by component
 
-## 2. Explicit Itemized Status Taxonomy
+### Data and infrastructure
 
-### Telemetry and Infrastructure Components
+| Component | Status | Evidence |
+|---|---|---|
+| FOCUS 1.2 ingestion | Implemented and locally tested | `research/ingestion/focus_loader.py`; D1–D3 local Parquet files |
+| FOCUS snapshot comparison | Descriptive only | No verified stable row key; `InvoiceId` null |
+| Alibaba workload profiling | Optional descriptive only | Real workload trace, no billing link, license unverified |
+| Admission → resource → FOCUS linkage | **Blocked** | No Spendctl admission/reservation records exist |
+| Billing first-availability timestamp | **Blocked** | FOCUS 1.2 has no arrival timestamp |
+| Billing revision history | **Blocked** | No validated stable key across snapshots |
+| Live EventBridge/S3 arrival logger | Planned | No AWS deployment |
+| Private subnet / dedicated security group | Blocked | Requires owner decision; no AWS mutation authorized |
 
-- **FOCUS Data Ingestion Pipeline:** *Verified* — Standardized schema transformation handles multi-resource cost records.
-- **CDK Multi-Stack Templates (5 Stacks):** *Verified (Synthesized)* — Local CDK synthesis confirms template validity; live deployment remains unverified.
-- **Live AWS Billing Delay Logger (EventBridge + S3):** *Planned* — Architecture specified; live deployment pending AWS environment readiness.
-- **Private Subnet & Dedicated No-Ingress Security Group:** *Blocked* — Requires owner decision on VPC topology.
+### Engine and analysis
 
-### Mathematical Core and Engine Mechanics
+| Component | Status | Evidence |
+|---|---|---|
+| Observed-spend estimator | Implemented and locally tested | Cumulative and EWMA baselines; Kalman deliberately unsupported |
+| Final-label conformal/ACI calibration | Implemented and locally tested | Revisions replace scores; no coverage guarantee claimed |
+| Early-warning monitor | Implemented and locally tested | Separate state; never creates a final label |
+| State-space Kalman filter | **Not implemented** | Protocol does not define defensible state/observation covariance |
+| `τ`-EUDACI early update of final-label coverage | **Not implemented** | No proof or empirical basis for an early-label update; early warnings remain operational only |
+| Asymmetric risk policy | Implemented and locally tested | Pure proposal; ledger remains authoritative |
+| Survival/hazard release policy | Implemented as an explicitly not-estimable interface with censoring support | No real revision/arrival history to fit |
+| `research/replay` metrics and runner | Implemented and locally tested | Stops at AMBER with `NOT_RUN_DATA_GAP` |
+| Comparative BOF/ABR/LCI/RAR evaluation | **Not testable with current data** | No linked labels, ledger state, or release records |
+| End-to-end live AWS verification | Not performed | No deployment authorized |
 
-- **State-Space Kalman Filter Module:** *Verified (Local)* — Mathematical implementation verified via local numerical tests.
-- **`τ`-EUDACI Asynchronous Update Loop:** *Verified (Local)* — Early breach update logic and double-counting bitmask validated in local simulations.
-- **Hazard-Rate Capital Release Scheduler:** *Planned* — Weibull/Gamma hazard fitting formulated; empirical validation awaiting time-stamped AWS delay logs.
+## 3. Methodological limitations
 
-### Empirical Validation and Production Safety
+### 3.1 No observable billing arrival or revision time
 
-- **Unit and Synthesis Test Passing:** *Verified* — Local test suites pass; explicitly **not** claimed as proof of empirical validity or production safety.
-- **End-to-End Live AWS Deployment:** *Unverified / Planned* — Full end-to-end integration across live AWS APIs remains unverified.
-- **Comparative Performance Benchmarks (BOF, LCI, RAR, LWR):** *Planned* — Execution protocol defined; awaiting full real-data trace runs.
+The FOCUS 1.2 schema contains billing-period and charge-period boundaries, not
+the time a record became available to a controller. S3 `LastModified` is an object
+timestamp and the collector's observation time is not the provider's publication
+time. One or more snapshots with different row counts do not prove that a given
+billing record was revised.
 
-## 3. Methodological and Theoretical Limitations
+**Impact:** feedback delay and revision magnitude cannot be measured from the
+current export. A release policy cannot be fitted. Any claim about delayed
+feedback remains untested.
 
-### 3.1. The Public Dataset Billing Delay Gap
+### 3.2 No admission-to-billing linkage
 
-Public cloud billing datasets (including the FOCUS sandbox repository) contain real resource line items, costs, and utilization quantities. However, they do not record the exact epoch timestamps of when individual line items were first published by the cloud provider or subsequently revised.
+No Spendctl admission, reservation, resource, or runtime records exist to join to
+FOCUS rows. `Tags` are empty, `InvoiceId` is null, and `ResourceId` is frequently
+null. No key is invented.
 
-**Impact:** Fitting exact hazard-rate survival functions \(S(\Delta t\mid W)\) requires collecting time-stamped EventBridge arrival logs from live AWS environments. Public traces allow cost variance estimation but cannot fully model real billing arrival latency without empirical timestamp enrichment.
+**Impact:** BOF, RAR, LCI, ABR, and upper-bound coverage cannot be computed for
+CALIBUR decisions. Aggregate budget safety is not evaluable.
 
-### 3.2. Theoretical Delay-to-Memory Ratio (`r=τ/L`) Vulnerability
+### 3.3 Alibaba traces are not bills
 
-Adaptive conformal inference relies on historical residual autocorrelation. In operational scenarios where feedback delay `τ` is significantly larger than the memory scale `L` of workload cost drift (`r=τ/L≫1`), the responsiveness of the conformal parameter `αt` degrades.
+Alibaba Cluster Trace v2017 provides real workload observations with relative
+timestamps and normalized/obfuscated resource values. It has no AWS costs,
+admission decisions, or billing arrival times, and no verified join key.
 
-**Impact:** While `τ`-EUDACI mitigates this delay by leveraging early provisional breach signals `Et=1`, early signals are only emitted when gross usage crosses the safety threshold. For subtle, gradual cost shifts that remain below the threshold during job execution, adaptation responsiveness remains bottlenecked by the raw billing delay `τ`.
+**Impact:** only a separately labelled descriptive workload study is possible.
+It cannot support dollar-cost calibration or budget-safety claims.
 
-### 3.3. One-Sided Asymmetry of Provisional Runtime Telemetry
+### 3.4 Counterfactual policy outcomes are not identified
 
-`τ`-EUDACI relies on the physical principle that cumulative resource usage (CPU/memory integrals) is monotonically non-decreasing over time. This creates an asymmetric signal: an early usage breach provides definitive, non-reversible proof that a budget overrun will occur (`Et=1`).
+Historical jobs were executed under the historical policy. Their observed costs
+are not automatically the costs that would occur if a different policy admitted
+or denied other jobs. Shared capacity, interference, discounts, and changed
+runtime violate simple off-policy assumptions.
 
-**Impact:** Conversely, provisional telemetry cannot provide early proof of a downward cost correction or unbilled credit revision. As a result, early updates can accelerate conservatism increases during cost surges, but conservatism decreases must still wait for delayed ground-truth CUR reconciliation.
+**Impact:** replay is descriptive unless a defensible identification assumption is
+stated. No causal superiority claim is made.
 
-### 3.4. Noise Covariance Estimation in Multi-Rate Filtering
+### 3.5 Revisions and censoring
 
-The Layer 1 Kalman filter assumes that observation noise covariance `Rt` can be estimated for provisional APIs (e.g., AWS Cost Explorer).
+A job with no observed revision by the collection cutoff is right-censored, not
+“never revised”. A late label changes the current reconstructed calibration state
+but must not be double-counted as a new job. Missing labels are excluded and
+reported, never treated as zero.
 
-**Impact:** Cloud provider APIs may exhibit non-linear observation error, throttling behavior, or sudden batch updates during billing cycle closures. If `Rt` is severely misspecified, the state estimate `x^t∣t` may lag behind true expenditure, temporarily miscalibrating the downstream conformal decision boundary.
+### 3.6 No coverage or safety guarantee
 
-## 4. Summary of Source Citations for Reference
+The implemented calibration is a sequential heuristic. No finite-sample
+split-conformal guarantee applies without a frozen exchangeable calibration
+partition and prespecified quantile. No theorem in this repository establishes
+long-run coverage under delayed, revised, non-exchangeable feedback. Early
+warnings do not alter that conclusion and are not final-cost misses.
 
-- **Adaptive Conformal Inference under Delayed Feedback (`τ`-DACI & `r=τ/L`):** El Halabi & Brandt (2026); Gibbs & Candès (2021); OCPQ; Group-Weighted Conformal Prediction.
-- **Conformal Risk Control & Conformal Decision Theory:** Angelopoulos et al. (2022/2025); ReqRC; CCO / CDT; RACE.
-- **State Estimation & Sensor Fusion:** Multi-sensor Kalman filtering (EKF/IEKF).
-- **Asymmetric Loss & Quantile Regression:** Pinball loss & LightGBM quantile regression; Netflix predictive CPU isolation & container oversubscription.
-- **Cloud Admission & Policy Enforcement:** OPA Gatekeeper & Policy-as-Code; Real-time ML inference admission control; Fog/Cloud resource allocation.
+### 3.7 Kalman filtering and survival release are not empirically supported
+
+No defensible state/observation model or covariance is defined from the available
+fields, so a Kalman filter is not implemented. No real revision/arrival history
+exists, so a survival release curve is not fitted. The release module returns an
+explicit not-estimable status rather than inventing a distribution.
+
+## 4. Claims that must not be made
+
+- CALIBUR has been empirically validated for budget safety.
+- FOCUS or Alibaba rows establish admission-to-billing linkage.
+- The current data measures billing delay or revision behavior.
+- The engine provides finite-sample, conformal, statistical, or aggregate
+  budget-safety guarantees.
+- A low synthetic overrun rate is evidence of real-world performance.
+- The project is production-ready or AWS-verified.
+
+## 5. Conditions for upgrading the gate
+
+Upgrade from AMBER to GREEN only after real request, admission, reservation,
+resource, runtime, billed-outcome, first-availability, revision, and
+budget-context records are linked with documented keys and timestamps, and the
+chronology passes the leakage checks in `research/protocol.md`.
+
+## 6. References
+
+- Gibbs and Candès (2021), Adaptive Conformal Inference Under Distribution Shift.
+- Gibbs and Candès (2024), Conformal Inference for Online Prediction with
+  Arbitrary Distribution Shifts.
+- El Halabi and Brandt (2026 preprint), Adaptive Conformal Inference Under
+  Delayed Feedback.
+- Angelopoulos et al., Conformal Risk Control and Conformal Decision Theory.
+- Alibaba Cluster Trace v2017 documentation.
+- FinOps FOCUS specification and AWS Data Exports documentation.
+
+These references motivate the design. They do not supply empirical evidence for
+this repository's claims.

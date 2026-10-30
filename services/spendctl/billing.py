@@ -1,8 +1,12 @@
-"""Fixture-testable CUR 2.0 normalization, attribution, and ledger reconciliation.
+"""Fixture-testable CUR 2.0 / FOCUS 1.2 normalization and ledger reconciliation.
 
 This module deliberately does not guess at missing resources or incomplete
-periods. The live export's field names must be confirmed before enabling its
-scheduled adapter.
+periods. FOCUS 1.2 has no verified row-level key, so a delivery is treated as a
+complete snapshot: rows are aggregated per reservation and the new total
+replaces the prior target instead of being appended.
+
+Timestamps in both schemas are billing-period boundaries, never billing-record
+arrival times. FOCUS revision order comes from the S3 delivery-key timestamp.
 """
 
 from __future__ import annotations
@@ -14,12 +18,24 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 from typing import Protocol
+from urllib.parse import urlsplit
 
-from .ledger import LedgerError, ReservationConflict, ReservationNotFound
+from .ledger import (
+    LedgerError,
+    ReservationConflict,
+    ReservationNotFound,
+    SettlementConflict,
+)
 
 MICRO_USD = Decimal(1_000_000)
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9_.:/-]{1,256}$")
+_PERIOD = re.compile(r"^\d{4}-\d{2}$")
+_DELIVERY_DIRECTORY = re.compile(
+    r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)-([A-Za-z0-9_.:/-]{1,256})$"
+)
+_EC2_ARN = re.compile(r"^arn:[^:]+:ec2:[^:]*:[^:]*:(?:instance|volume)/(.+)$")
 _SUPPORTED_PRODUCTS = {"AmazonEC2", "AmazonEBS"}
+_FOCUS_SUPPORTED_FILE_SUFFIXES = (".parquet", ".csv", ".csv.gz")
 
 
 class BillingError(Exception):
@@ -136,6 +152,140 @@ def _nonempty(value) -> str | None:
     return str(value).strip() if value is not None and str(value).strip() else None
 
 
+def _focus_value(row: dict, key: str):
+    """Read a FOCUS field case-insensitively (Athena may lower-case columns)."""
+    if key in row:
+        return row[key]
+    folded = key.casefold()
+    for candidate, value in row.items():
+        if str(candidate).casefold() == folded:
+            return value
+    return None
+
+
+def _focus_required(row: dict, key: str) -> str:
+    value = _focus_value(row, key)
+    if value is None or str(value).strip() == "":
+        raise InvalidBillingRecord(f"missing required FOCUS field: {key}")
+    return str(value).strip()
+
+
+def _focus_tags(value) -> dict[str, str]:
+    """Parse FOCUS Tags from a map or Athena's ``{key=value}`` rendering."""
+    if value is None or value == "":
+        return {}
+    if isinstance(value, dict):
+        return {
+            str(key): str(item)
+            for key, item in value.items()
+            if key is not None and item is not None
+        }
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return {}
+        tags = {}
+        for entry in value:
+            if not isinstance(entry, (list, tuple)) or len(entry) != 2:
+                raise InvalidBillingRecord("FOCUS Tags entry is malformed")
+            key, item = entry
+            if key is None or item is None:
+                continue
+            tags[str(key)] = str(item)
+        return tags
+    text = str(value).strip()
+    if text in {"", "{}"}:
+        return {}
+    if not (text.startswith("{") and text.endswith("}")):
+        raise InvalidBillingRecord("FOCUS Tags must be a map")
+    if '"' in text:
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, dict):
+            return _focus_tags(parsed)
+        if parsed is not None:
+            raise InvalidBillingRecord("FOCUS Tags must be a map")
+    body = text[1:-1].strip()
+    if not body:
+        return {}
+    parts = body.split(", ")
+    if any("=" not in part for part in parts):
+        parts = body.split(",")
+    tags = {}
+    for part in parts:
+        key, separator, item = part.partition("=")
+        if not separator or not key.strip():
+            raise InvalidBillingRecord("FOCUS Tags entry is malformed")
+        tags[key.strip()] = item.strip()
+    return tags
+
+
+def _focus_resource_id(value) -> str | None:
+    """Reduce an EC2/volume ARN to the bare resource id recorded by the ledger."""
+    resource_id = _nonempty(value)
+    if not resource_id:
+        return None
+    match = _EC2_ARN.fullmatch(resource_id)
+    return match.group(1) if match else resource_id
+
+
+def _focus_period(value: str) -> str:
+    period = value[:7]
+    if not _PERIOD.fullmatch(period):
+        raise InvalidBillingRecord("FOCUS BillingPeriodStart is not an ISO timestamp")
+    return period
+
+
+def normalize_focus_record(
+    row: dict, *, snapshot_id: str, row_index: int
+) -> NormalizedBillingRecord:
+    """Normalize one FOCUS 1.2 row into the internal reconciliation model.
+
+    FOCUS 1.2 has no verified row-level unique key. ``row_index`` provides a
+    stable ordinal within one validated snapshot so that legitimate duplicate
+    rows are aggregated rather than silently discarded.
+    """
+    if not isinstance(row, dict):
+        raise InvalidBillingRecord("FOCUS row must be an object")
+    snapshot = _nonempty(snapshot_id)
+    if not snapshot:
+        raise InvalidBillingRecord("FOCUS snapshot id is required")
+    if isinstance(row_index, bool) or not isinstance(row_index, int) or row_index < 0:
+        raise InvalidBillingRecord("FOCUS row index must be a non-negative integer")
+    billing_period = _focus_period(_focus_required(row, "BillingPeriodStart"))
+    service = _focus_required(row, "x_ServiceCode")
+    charge_category = _focus_required(row, "ChargeCategory")
+    currency = _focus_required(row, "BillingCurrency").upper()
+    if currency != "USD":
+        raise InvalidBillingRecord(f"unsupported FOCUS currency: {currency}")
+    amount = _micro_usd(_focus_required(row, "BilledCost"), "BilledCost")
+    tags = _focus_tags(_focus_value(row, "Tags"))
+    raw_fingerprint = hashlib.sha256(
+        json.dumps(row, sort_keys=True, separators=(",", ":"), default=str).encode()
+    ).hexdigest()
+    return NormalizedBillingRecord(
+        record_id=f"{snapshot}:row:{row_index}",
+        billing_period=billing_period,
+        usage_start=_focus_required(row, "ChargePeriodStart"),
+        usage_end=_focus_required(row, "ChargePeriodEnd"),
+        account_id=_nonempty(_focus_value(row, "BillingAccountId"))
+        or _nonempty(_focus_value(row, "SubAccountId")),
+        service_code=service,
+        usage_type=_nonempty(_focus_value(row, "SkuMeter")),
+        operation=_nonempty(_focus_value(row, "x_Operation")),
+        resource_id=_focus_resource_id(_focus_value(row, "ResourceId")),
+        reservation_tag=_nonempty(tags.get("reservation-id")),
+        team_tag=_nonempty(tags.get("team")),
+        line_item_type=charge_category,
+        currency=currency,
+        amount_micro=amount,
+        cost_field="BilledCost",
+        classification=_classify(service, charge_category, amount),
+        raw_fingerprint=raw_fingerprint,
+    )
+
+
 def _classify(service: str, line_type: str, amount: int) -> str:
     if amount < 0 or line_type.lower() in {"credit", "refund", "discount", "edp discount"}:
         return "ADJUSTMENT_EXCLUDED"
@@ -158,6 +308,7 @@ class ReconciliationResult:
     unattributed: int = 0
     excluded: int = 0
     duplicates: int = 0
+    skipped: int = 0
     adjustments: list[dict] | None = None
     reasons: list[dict] | None = None
 
@@ -181,9 +332,12 @@ class BillingReconciler:
         source_revision: str,
         source_revision_order: str,
         complete: bool,
+        stale_revision_policy: str = "raise",
     ) -> ReconciliationResult:
         if not complete:
-            raise IncompleteBillingSnapshot("incomplete CUR snapshot cannot change the ledger")
+            raise IncompleteBillingSnapshot("incomplete billing snapshot cannot change the ledger")
+        if stale_revision_policy not in {"raise", "skip"}:
+            raise ValueError("stale_revision_policy must be 'raise' or 'skip'")
         if (
             not _IDENTIFIER.fullmatch(billing_period)
             or not _IDENTIFIER.fullmatch(source_revision)
@@ -251,11 +405,17 @@ class BillingReconciler:
                     "BillingLedgerConflict",
                     {"reservation_id": reservation_id, "reason": type(error).__name__},
                 )
-                if "stale" in str(error).lower() or "out of order" in str(error).lower():
+                stale = isinstance(error, SettlementConflict) and (
+                    "stale" in str(error).lower() or "out of order" in str(error).lower()
+                )
+                if stale:
                     self.emit(
                         "BillingStaleRevision",
                         {"reservation_id": reservation_id, "reason": type(error).__name__},
                     )
+                    if stale_revision_policy == "skip":
+                        result.skipped += 1
+                        continue
                 raise BillingLedgerConflict(reservation_id) from error
             result.processed += 1
             result.adjustments.append(
@@ -363,3 +523,88 @@ def validate_manifest(manifest: dict) -> tuple[str, str, str]:
         raise InvalidBillingRecord("manifest createTimestamp must include a timezone")
     order = timestamp.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
     return period, str(revision), order
+
+
+@dataclass(frozen=True)
+class FocusSnapshot:
+    billing_period: str
+    revision: str
+    revision_order: str
+    data_files: tuple[str, ...]
+
+
+def validate_focus_manifest(manifest: dict, *, object_key: str) -> FocusSnapshot:
+    """Validate a FOCUS 1.2 Data Exports manifest and derive its delivery order.
+
+    The manifest carries no billing period or creation timestamp. The period
+    and the observed delivery timestamp come from the S3 key written by Data
+    Exports (``billing_period=YYYY-MM/<timestamp>-<executionId>/...``).
+    """
+    if not isinstance(manifest, dict):
+        raise InvalidBillingRecord("manifest must be a JSON object")
+    revision = manifest.get("executionId")
+    data_files = manifest.get("dataFiles")
+    additional = manifest.get("additionalOutputFiles", [])
+    if not isinstance(revision, str) or not _IDENTIFIER.fullmatch(revision):
+        raise InvalidBillingRecord("FOCUS manifest executionId is missing or invalid")
+    if not isinstance(data_files, list) or not data_files:
+        raise IncompleteBillingSnapshot("FOCUS manifest has no data files")
+    if not isinstance(additional, list):
+        raise InvalidBillingRecord("FOCUS additionalOutputFiles must be a list")
+    if additional:
+        raise IncompleteBillingSnapshot(
+            "FOCUS additional output files require manual review before reconciliation"
+        )
+    key = _validated_object_key(object_key)
+    parts = key.split("/")
+    if len(parts) < 3:
+        raise InvalidBillingRecord("FOCUS manifest key is not inside a delivery directory")
+    delivery_directory = parts[-2]
+    match = _DELIVERY_DIRECTORY.fullmatch(delivery_directory)
+    if not match:
+        raise InvalidBillingRecord(
+            "FOCUS manifest key is missing the delivery timestamp and execution id"
+        )
+    if match.group(2) != revision:
+        raise InvalidBillingRecord("FOCUS manifest executionId does not match its S3 key")
+    try:
+        timestamp = datetime.fromisoformat(match.group(1))
+    except ValueError as error:
+        raise InvalidBillingRecord("FOCUS delivery timestamp is not ISO-8601") from error
+    order = timestamp.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    period = None
+    for part in parts:
+        period_match = re.fullmatch(r"billing_period=(\d{4}-\d{2})", part)
+        if period_match:
+            period = period_match.group(1)
+            break
+    if period is None:
+        raise InvalidBillingRecord("FOCUS manifest key has no billing_period=YYYY-MM segment")
+    delivery_prefix = "/".join(parts[:-1]) + "/"
+    files = []
+    for uri in data_files:
+        if not isinstance(uri, str):
+            raise InvalidBillingRecord("FOCUS data file must be an S3 URI")
+        if "'" in uri or "\\" in uri:
+            raise InvalidBillingRecord("FOCUS data file contains an unsafe character")
+        parsed = urlsplit(uri)
+        if parsed.scheme != "s3" or not parsed.netloc or not parsed.path:
+            raise InvalidBillingRecord("FOCUS data file must be an S3 URI")
+        file_key = parsed.path.lstrip("/")
+        if not file_key.startswith(delivery_prefix):
+            raise InvalidBillingRecord("FOCUS data file is outside its delivery directory")
+        if ".." in file_key.split("/"):
+            raise InvalidBillingRecord("FOCUS data file path traversal is not allowed")
+        if not file_key.lower().endswith(_FOCUS_SUPPORTED_FILE_SUFFIXES):
+            raise InvalidBillingRecord("FOCUS data file is not Parquet or CSV")
+        files.append(uri)
+    return FocusSnapshot(period, revision, order, tuple(files))
+
+
+def _validated_object_key(object_key: str) -> str:
+    if not isinstance(object_key, str) or not object_key:
+        raise InvalidBillingRecord("manifest object key is required")
+    key = object_key.lstrip("/")
+    if "\\" in key or ".." in key.split("/"):
+        raise InvalidBillingRecord("invalid S3 manifest key")
+    return key

@@ -40,10 +40,10 @@ from __future__ import annotations
 
 import csv
 import hashlib
-import io
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Repository root — resolved relative to this file.
@@ -317,9 +317,7 @@ def load_file(
 
     with resolved.open(newline="", encoding=encoding, errors="replace") as fh:
         reader = csv.reader(fh)
-        row_num = 0
-        for raw_row in reader:
-            row_num += 1
+        for row_num, raw_row in enumerate(reader, start=1):
             if observed_cols is None:
                 observed_cols = len(raw_row)
                 if observed_cols != expected_cols:

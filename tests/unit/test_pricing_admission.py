@@ -15,7 +15,9 @@ from spendctl.admission import (
     AdmissionService,
     UnauthorizedTeam,
     VerifiedIdentity,
+    _request_id,
 )
+from spendctl.calibration import MarginPolicies, Sample
 from spendctl.ledger import AmbiguousLedgerOutcome, DynamoLedger, LedgerTransactionCancelled
 from spendctl.pricing import (
     CachedPricingProvider,
@@ -342,6 +344,21 @@ def test_admission_reserves_atomically_and_replay_is_durable(ledger):
     assert stored["price_snapshot_id"]
     assert stored["price_fetched_at"]
     assert stored["price_source"] == "fixture_unverified"
+    assert stored["request_id"].startswith("req_")
+    assert first["request_id"] == stored["request_id"] == replay["request_id"]
+    assert stored["decision_at"].endswith("Z")
+    assert stored["policy_version"] == "calibur-policy/0.1"
+    assert stored["margin_policy"] == "fixed"
+    assert stored["calibur_proposal"]["reservation_amount_micro"] == stored["reserved_micro"]
+    assert stored["currency"] == "USD"
+    snapshot = stored["decision_budget_snapshot"]
+    assert snapshot == {
+        "budget_micro": 50_000,
+        "available_micro": 50_000,
+        "reserved_micro": 0,
+        "spent_micro": 0,
+        "version": 1,
+    }
     assert invariant(ledger)["reserved_micro"] == first["reserved_micro"]
 
 
@@ -359,6 +376,36 @@ def test_concurrent_retries_of_same_admission_reserve_once(ledger):
     assert sum(result["reserved_micro"] for result in outcomes) == 8 * outcomes[0]["reserved_micro"]
     budget = invariant(ledger)
     assert budget["reserved_micro"] == outcomes[0]["reserved_micro"]
+
+
+def test_calibur_active_policy_changes_the_durable_reservation(ledger):
+    policies = MarginPolicies()
+    for order in range(10):
+        policies.add_settlement(
+            "ec2:t3",
+            Sample(
+                settlement_id=f"settlement-{order}",
+                ratio=1.5,
+                reserved_micro=10_000,
+                actual_micro=15_000,
+                modeled_runtime_micro=10_000,
+                settled_order=order,
+            ),
+        )
+    admission = AdmissionService(
+        ledger,
+        FixturePricingProvider(),
+        policies=policies,
+        active_policy="adaptive",
+    )
+
+    result = admission.admit(BODY, identity=IDENTITY, period=PERIOD, idempotency_key="adaptive")
+
+    stored = ledger.get_reservation(result["reservation_id"])
+    assert result["reserved_micro"] == 19_316
+    assert stored["margin_policy"] == "adaptive"
+    assert stored["calibur_proposal"]["upper_cost_estimate_micro"] == 19_316
+    assert "POLICY_APPROVED" in stored["calibur_proposal"]["reason_codes"]
 
 
 def test_admission_rejects_cross_team_and_conflicting_key_reuse(ledger):
@@ -384,6 +431,11 @@ def test_insufficient_budget_does_not_change_balances(ledger):
     )
     with pytest.raises(AdmissionInsufficientBudget):
         service(ledger).admit(BODY, identity=IDENTITY, period=PERIOD, idempotency_key="too-large")
+    request_id = _request_id(IDENTITY.team, IDENTITY.subject, "too-large")
+    decision = ledger._get_item("Reservations", {"pk": f"REQUEST#{request_id}", "sk": "DECISION"})
+    assert decision["decision"] == "DENIED"
+    assert decision["denial_reason"] == "INSUFFICIENT_BUDGET"
+    assert decision["decision_at"].endswith("Z")
     assert invariant(ledger)["reserved_micro"] == 0
     assert small_budget == 50_000
 
@@ -481,3 +533,20 @@ def test_reconciliation_uses_same_key_and_returns_confirmed_reservation(ledger):
     )
     assert resolved["reservation_id"] == first["reservation_id"]
     assert resolved["replayed"] is True
+
+
+def test_admission_freezes_final_label_calibration_in_calibur_proposal(ledger):
+    policies = MarginPolicies()
+    for index in range(10):
+        policies.add_settlement(
+            "ec2:t3",
+            Sample(f"settlement-{index}", 1.5, 150, 150, 100, index),
+        )
+    admission = AdmissionService(
+        ledger, FixturePricingProvider(), policies=policies, active_policy="rolling_quantile"
+    )
+    outcome = admission.admit(BODY, identity=IDENTITY, period=PERIOD, idempotency_key="calibrated")
+    proposal = outcome["reservation"]["calibur_proposal"]
+    assert proposal["state_version"].startswith("margin/rolling_quantile/ec2:t3/samples=10")
+    assert "CALIBRATION_USED" in proposal["reason_codes"]
+    assert proposal["reservation_amount_micro"] == 19_316

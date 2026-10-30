@@ -8,17 +8,17 @@ from __future__ import annotations
 
 import csv
 import hashlib
-import io
 import json
-import struct
-from pathlib import Path
-
-import pytest
 
 # ---------------------------------------------------------------------------
 # Import helpers — add research/ to path so loader modules are importable.
 # ---------------------------------------------------------------------------
 import sys
+from pathlib import Path
+from typing import ClassVar
+
+import pytest
+
 RESEARCH_DIR = Path(__file__).resolve().parents[2] / "research"
 if str(RESEARCH_DIR) not in sys.path:
     sys.path.insert(0, str(RESEARCH_DIR))
@@ -29,25 +29,31 @@ from ingestion.alibaba_loader import (
     AlibabaLoadResult,
     AlibabaRow,
     ChecksumMismatch,
-    SchemaMismatch,
     SourceNotApproved,
     load_file,
+)
+from ingestion.alibaba_loader import (
     provenance as alibaba_provenance,
 )
 from ingestion.focus_loader import (
     APPROVED_DELIVERIES,
     FOCUS_REQUIRED_COLUMNS,
-    ChecksumMismatch as FocusChecksumMismatch,
     FocusLoadResult,
     FocusRow,
     MissingRequiredColumn,
-    SourceNotApproved as FocusSourceNotApproved,
     UnexpectedCurrency,
     cost_to_micro,
     load_parquet,
+)
+from ingestion.focus_loader import (
+    ChecksumMismatch as FocusChecksumMismatch,
+)
+from ingestion.focus_loader import (
+    SourceNotApproved as FocusSourceNotApproved,
+)
+from ingestion.focus_loader import (
     provenance as focus_provenance,
 )
-
 
 # ===========================================================================
 # Helpers
@@ -105,7 +111,7 @@ class TestAlibabaApproval:
 class TestAlibabaSchemaColumnCounts:
     """Column counts must match research/alibaba_v2017_schema.csv."""
 
-    expected_counts = {
+    expected_counts: ClassVar[dict[str, int]] = {
         "batch_instance.csv":  12,
         "batch_task.csv":       8,
         # 8 columns per trace_201708.md / alibaba_v2017_schema.csv,
@@ -641,11 +647,11 @@ class TestAlibabaContainerEventNineColumns:
     """
 
     # Valid 9-column row matching the real file layout.
-    _CE_ROW_9 = ["0", "Create", "10000", "934", "4",
+    _CE_ROW_9: ClassVar[list[str]] = ["0", "Create", "10000", "934", "4",
                   "0.0424", "0.0341", "40|41|42|43", ""]
 
     # Valid 8-column row (only 8 documented fields).
-    _CE_ROW_8 = ["0", "Create", "10000", "934", "4",
+    _CE_ROW_8: ClassVar[list[str]] = ["0", "Create", "10000", "934", "4",
                   "0.0424", "0.0341", "40|41|42|43"]
 
     def test_nine_col_row_loads_without_error(self, tmp_path):
@@ -704,10 +710,11 @@ class TestAlibabaIterFile:
     def test_iter_file_wrong_checksum_raises_before_yielding(self, tmp_path):
         from ingestion.alibaba_loader import iter_file
         _write_csv(tmp_path / "batch_task.csv", [_BATCH_TASK_ROW])
-        rows_yielded = []
+        rows_yielded: list[AlibabaRow] = []
         with pytest.raises(ChecksumMismatch):
-            for row in iter_file("batch_task.csv", raw_dir=tmp_path, expected_sha256="a" * 64):
-                rows_yielded.append(row)
+            rows_yielded.extend(
+                iter_file("batch_task.csv", raw_dir=tmp_path, expected_sha256="a" * 64)
+            )
         assert rows_yielded == [], "No rows must be yielded if checksum fails"
 
     def test_iter_file_missing_is_none_not_zero(self, tmp_path):
@@ -759,7 +766,7 @@ class TestFixtureIsolation:
         """
         _write_csv(tmp_path / "batch_task.csv", [_BATCH_TASK_ROW])
         result = load_file("batch_task.csv", raw_dir=tmp_path)
-        known_shas = set(v for v in APPROVED_FILES.values() if v)
+        known_shas = {v for v in APPROVED_FILES.values() if v}
         assert result.sha256 not in known_shas
 
     def test_missing_cost_never_zero_in_fixture_or_real(self, tmp_path):
@@ -769,7 +776,6 @@ class TestFixtureIsolation:
 
     def test_focus_null_fields_never_zero_in_fixture(self, tmp_path):
         """Null Parquet fields in fixtures must load as None, not 0."""
-        row = {**_FOCUS_ROW, "InvoiceId": None, "ResourceId": None, "BilledCost": None}
         p = tmp_path / "null_fixture.parquet"
         # Can't make BilledCost None easily through _make_focus_parquet since it validates
         # required fields — use allow_unlisted and skip the required-column check via a
@@ -832,19 +838,30 @@ class TestSourceApprovalAndDiscrepancy:
         approval = pd_mod.SOURCE_APPROVAL.get("aws_focus_1.2", {})
         assert approval.get("approved") is True
 
-    def test_account_id_discrepancy_is_resolved_in_source_approval(self):
-        """The account-ID discrepancy has been resolved via sts get-caller-identity.
-        The resolution note must be present in SOURCE_APPROVAL for aws_focus_1.2."""
+    def test_account_id_discrepancy_note_is_redacted_and_unresolved(self):
+        """Account identifiers must be withheld, and the discrepancy must stay open.
+
+        The source approval previously recorded a full account identifier and
+        claimed the discrepancy was resolved. That both violated the
+        no-private-identifiers rule and overstated the evidence: resolution
+        requires owner confirmation against the AWS console.
+        """
+        import re
+
         import profile_data as pd_mod
+
         approval = pd_mod.SOURCE_APPROVAL.get("aws_focus_1.2", {})
         note = approval.get("s3_bucket_name_note", "")
-        assert "resolved" in note.lower() or "582422215623" in note, (
-            "aws_focus_1.2 source approval must record the account-ID resolution"
+        assert "withheld" in note.lower(), "identifiers must be recorded as withheld"
+        assert "not treated as resolved" in note.lower(), (
+            "the discrepancy must not be claimed resolved without owner confirmation"
         )
-        assert "582422215623" in note, "Confirmed account ID 582422215623 must be in the note"
+        assert re.search(r"\b\d{12}\b", note) is None, (
+            "a 12-digit account identifier must not be committed"
+        )
 
-    def test_account_id_discrepancy_preserved_in_unresolved_issues(self):
-        """The S3/ARN account-ID discrepancy must be present and unresolved."""
+    def test_account_id_discrepancy_is_never_marked_resolved(self):
+        """No account-ID discrepancy issue may claim resolution without owner review."""
         import profile_data as pd_mod
         issues = pd_mod.UNRESOLVED_QUALITY_ISSUES
         discrepancy_issues = [
@@ -852,12 +869,10 @@ class TestSourceApprovalAndDiscrepancy:
             if "account" in i.get("issue", "").lower()
             and i.get("source") == "aws_focus_1.2"
         ]
-        # The discrepancy was resolved by sts get-caller-identity on 2026-10-25.
-        # If the issue is present it must be marked RESOLVED (not silently removed).
         for issue in discrepancy_issues:
             status = issue.get("status", "")
-            assert "RESOLVED" in status.upper(), (
-                f"Account-ID discrepancy issue must be marked RESOLVED, got: {status}"
+            assert status.upper().startswith("UNRESOLVED"), (
+                f"Account-ID discrepancy must remain unresolved, got: {status}"
             )
 
     def test_blocked_analyses_list_is_non_empty(self):
@@ -909,10 +924,11 @@ class TestSourceApprovalAndDiscrepancy:
 
     def test_report_version_incremented(self):
         """report_version must be ≥ 2 now that machine-readable quality fields are added."""
-        import profile_data as pd_mod
         # Construct a minimal report by calling main() with a tmp manifest and no raw files
-        import json, tempfile
+        import tempfile
         from pathlib import Path
+
+        import profile_data as pd_mod
         with tempfile.TemporaryDirectory() as td:
             tp = Path(td)
             manifest = tp / "data_manifest.md"
@@ -921,7 +937,7 @@ class TestSourceApprovalAndDiscrepancy:
             raw.mkdir(parents=True)
             json_out = tp / "out.json"
             md_out = tp / "out.md"
-            import unittest.mock as mock
+            from unittest import mock
             with mock.patch.object(pd_mod, "MANIFEST", manifest), \
                  mock.patch.object(pd_mod, "RAW_ROOT", raw):
                 rc = pd_mod.main([

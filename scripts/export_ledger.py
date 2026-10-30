@@ -60,7 +60,6 @@ import argparse
 import json
 import sys
 from datetime import UTC, datetime
-from decimal import Decimal
 from pathlib import Path
 
 # Allow running from repo root with PYTHONPATH=services
@@ -130,7 +129,6 @@ def _scan_reservations(dynamodb, table_name: str, period: str) -> list[dict]:
     table is scanned because there is no GSI on period for all record types.
     This is safe for the small dev table expected here.
     """
-    import boto3.dynamodb.conditions as conditions
 
     reservations = []
     billing_audits = []

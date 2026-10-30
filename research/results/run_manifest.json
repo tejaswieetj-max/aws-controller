@@ -1,0 +1,305 @@
+{
+  "baselines": [
+    {
+      "policy": "raw_point_estimate",
+      "reason": "point estimates and final labels are both required",
+      "required_fields": [
+        "point_cost_estimate",
+        "final_billed_label",
+        "decision_timestamp"
+      ],
+      "status": "UNAVAILABLE"
+    },
+    {
+      "policy": "static_margin",
+      "reason": "point estimates and final labels are both required",
+      "required_fields": [
+        "point_cost_estimate",
+        "final_billed_label",
+        "decision_timestamp"
+      ],
+      "status": "UNAVAILABLE"
+    },
+    {
+      "policy": "delayed_label_aci",
+      "reason": "labels with observed-at timestamps and a prior calibration history are required",
+      "required_fields": [
+        "point_cost_estimate",
+        "final_billed_label",
+        "decision_timestamp",
+        "final_label_observed_at",
+        "calibration_history"
+      ],
+      "status": "UNAVAILABLE"
+    },
+    {
+      "policy": "quantile_regression",
+      "reason": "at least 30 real labelled training requests are required by the fixed rule",
+      "required_fields": [
+        "point_cost_estimate",
+        "final_billed_label",
+        "decision_timestamp",
+        "request_features",
+        "training_label_count>=30"
+      ],
+      "status": "UNAVAILABLE"
+    },
+    {
+      "policy": "drift_recalibration",
+      "reason": "ordered real residuals across time are required",
+      "required_fields": [
+        "point_cost_estimate",
+        "final_billed_label",
+        "decision_timestamp",
+        "residual_history"
+      ],
+      "status": "UNAVAILABLE"
+    },
+    {
+      "policy": "calibur",
+      "reason": "all CALIBUR input channels are required",
+      "required_fields": [
+        "point_cost_estimate",
+        "final_billed_label",
+        "decision_timestamp",
+        "upper_cost_bound_or_calibration",
+        "telemetry_observation",
+        "ledger_state_at_decision",
+        "revision_history"
+      ],
+      "status": "UNAVAILABLE"
+    },
+    {
+      "policy": "calibur_without_early_warning",
+      "reason": "CALIBUR ablation needs point estimates, final labels, and ledger context",
+      "required_fields": [
+        "point_cost_estimate",
+        "final_billed_label",
+        "decision_timestamp",
+        "ledger_state_at_decision"
+      ],
+      "status": "UNAVAILABLE"
+    },
+    {
+      "policy": "calibur_without_state_estimator",
+      "reason": "CALIBUR ablation shares the full input requirement",
+      "required_fields": [
+        "point_cost_estimate",
+        "final_billed_label",
+        "decision_timestamp",
+        "upper_cost_bound_or_calibration",
+        "telemetry_observation",
+        "ledger_state_at_decision",
+        "revision_history"
+      ],
+      "status": "UNAVAILABLE"
+    },
+    {
+      "policy": "calibur_with_fixed_release",
+      "reason": "fixed-release ablation needs observed revision history",
+      "required_fields": [
+        "point_cost_estimate",
+        "final_billed_label",
+        "decision_timestamp",
+        "upper_cost_bound_or_calibration",
+        "telemetry_observation",
+        "ledger_state_at_decision",
+        "revision_history",
+        "observed_revision_history"
+      ],
+      "status": "UNAVAILABLE"
+    },
+    {
+      "policy": "oracle_upper_bound",
+      "reason": "oracle uses the final label and is an unattainable reference only",
+      "required_fields": [
+        "final_billed_label"
+      ],
+      "status": "UNAVAILABLE"
+    }
+  ],
+  "code": {
+    "branch": "calibur-research-work",
+    "commit": "6986ba6588d091afb654be9565ad941fe5e293b2",
+    "worktree_dirty": true
+  },
+  "environment": {
+    "packages": {
+      "boto3": "1.43.118",
+      "pyarrow": "17.0.0",
+      "pydantic": "2.14.1",
+      "pytest": "9.1.1",
+      "ruff": "0.17.2"
+    },
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.15"
+  },
+  "evidence": [
+    {
+      "description": "approved FOCUS deliveries and manifests match recorded SHA-256 values",
+      "detail": "6/6 sources verified",
+      "key": "approved_sources",
+      "needed": "all approved source files present and verified",
+      "present": true
+    },
+    {
+      "description": "real request/decision/reservation records",
+      "detail": "0 reservation record(s) supplied",
+      "key": "admission_records",
+      "needed": "operator export of Spendctl admission/reservation records",
+      "present": false
+    },
+    {
+      "description": "request -> resource/runtime linkage with an observed timestamp",
+      "detail": "0 reservation(s) carry a resource reference and creation time",
+      "key": "resource_linkage",
+      "needed": "reservation records containing resource identity and real timestamps",
+      "present": false
+    },
+    {
+      "description": "final billed cost joined to the reservation by a verified key",
+      "detail": "0 billing record(s) carry a final amount and reservation_id",
+      "key": "final_billed_labels",
+      "needed": "settled billing records joined by a documented key",
+      "present": false
+    },
+    {
+      "description": "first-observability timestamp for each billing amount",
+      "detail": "0 billing record(s) carry a first-observed timestamp",
+      "key": "first_availability",
+      "needed": "collector or export log recording when the amount first became observable",
+      "present": false
+    },
+    {
+      "description": "stable billing key for revision comparison",
+      "detail": "0 billing record(s) carry a stable key",
+      "key": "stable_billing_key",
+      "needed": "confirmed row-level key across separately observed deliveries",
+      "present": false
+    },
+    {
+      "description": "authoritative budget/ledger state at each decision time",
+      "detail": "0 reservation(s) carry budget state at decision",
+      "key": "budget_context",
+      "needed": "exported ledger snapshot per decision",
+      "present": false
+    },
+    {
+      "description": "observed usage telemetry linked to the reservation",
+      "detail": "0 record(s) carry telemetry timestamps",
+      "key": "telemetry",
+      "needed": "real CloudWatch/telemetry observations with source timestamps",
+      "present": false
+    },
+    {
+      "description": "observed billing revision/arrival history with censoring",
+      "detail": "0 record(s) carry revision lineage",
+      "key": "revision_history",
+      "needed": "validated revision pairs across separately observed exports",
+      "present": false
+    }
+  ],
+  "exclusions": [
+    "No comparative metrics were computed because required evidence is absent.",
+    "All supplied-but-unmatched records, if any, remain in the export and were not deleted."
+  ],
+  "feasibility_gate": "AMBER",
+  "generated_at": "2026-10-26T13:04:31.992616Z",
+  "ledger_export": null,
+  "limitations": [
+    "No synthetic, simulated, interpolated, or generated observation was used.",
+    "The feasibility gate remains AMBER.",
+    "No coverage, conformal, statistical, or budget-safety guarantee is claimed."
+  ],
+  "manifest": {
+    "path": "research/data_manifest.md",
+    "sha256": "57b92a2cb39fbe273d5521d686790c46399b61d2284eea881aead447a410d238"
+  },
+  "metrics": {},
+  "protocol": {
+    "path": "research/protocol.md",
+    "sha256": "a7ff205bff64675d578f298584cd89c4494d6644ae5c57824d311677508feea6"
+  },
+  "sources": [
+    {
+      "bytes": 111251,
+      "checksum_ok": true,
+      "exists": true,
+      "expected_sha256": "e829bfa81b344c07e7803d52bd7e9863eba2240e37cea4a701c2dc48f5220597",
+      "missing_columns": [],
+      "notes": [],
+      "path": "data/raw/focus12/CALIBUR_FOCUS_12-00001.snappy.parquet",
+      "role": "focus_delivery",
+      "rows": 12200,
+      "schema_ok": true,
+      "sha256": "e829bfa81b344c07e7803d52bd7e9863eba2240e37cea4a701c2dc48f5220597"
+    },
+    {
+      "bytes": 105860,
+      "checksum_ok": true,
+      "exists": true,
+      "expected_sha256": "df688f94a119d2cc92b0347dc86b7ee4b3ec383a58671de2ce216347f375378b",
+      "missing_columns": [],
+      "notes": [],
+      "path": "data/raw/focus12/delivery_2026-10-25/CALIBUR_FOCUS_12-00001.snappy.parquet",
+      "role": "focus_delivery",
+      "rows": 12404,
+      "schema_ok": true,
+      "sha256": "df688f94a119d2cc92b0347dc86b7ee4b3ec383a58671de2ce216347f375378b"
+    },
+    {
+      "bytes": 113134,
+      "checksum_ok": true,
+      "exists": true,
+      "expected_sha256": "a6c184a5cae50b43d0a7d0e46c5987ff8852cd8aeb4799b4cfa7bb3e1e1c08f0",
+      "missing_columns": [],
+      "notes": [],
+      "path": "data/raw/focus12/delivery_2026-10-25T11/CALIBUR_FOCUS_12-00001.snappy.parquet",
+      "role": "focus_delivery",
+      "rows": 12579,
+      "schema_ok": true,
+      "sha256": "a6c184a5cae50b43d0a7d0e46c5987ff8852cd8aeb4799b4cfa7bb3e1e1c08f0"
+    },
+    {
+      "bytes": 4927,
+      "checksum_ok": true,
+      "exists": true,
+      "expected_sha256": "898bb08c152fee6a2d8af114b28f41235d938045849666c636c161010943ed16",
+      "missing_columns": [],
+      "notes": [],
+      "path": "data/raw/focus12/CALIBUR_FOCUS_12-Manifest-FOCUS.json",
+      "role": "focus_manifest",
+      "rows": null,
+      "schema_ok": null,
+      "sha256": "898bb08c152fee6a2d8af114b28f41235d938045849666c636c161010943ed16"
+    },
+    {
+      "bytes": 4927,
+      "checksum_ok": true,
+      "exists": true,
+      "expected_sha256": "898bb08c152fee6a2d8af114b28f41235d938045849666c636c161010943ed16",
+      "missing_columns": [],
+      "notes": [],
+      "path": "data/raw/focus12/delivery_2026-10-25T11/CALIBUR_FOCUS_12-Manifest-FOCUS.json",
+      "role": "focus_manifest",
+      "rows": null,
+      "schema_ok": null,
+      "sha256": "898bb08c152fee6a2d8af114b28f41235d938045849666c636c161010943ed16"
+    },
+    {
+      "bytes": 3050,
+      "checksum_ok": true,
+      "exists": true,
+      "expected_sha256": "61dd8c10cfb8525ba15eb6678ba7682eb3bb0e3eedfcb57cbe33d3d0d9a6c79b",
+      "missing_columns": [],
+      "notes": [],
+      "path": "data/raw/focus12/delivery_2026-10-25T11/CALIBUR_FOCUS_12-Manifest.json",
+      "role": "focus_manifest",
+      "rows": null,
+      "schema_ok": null,
+      "sha256": "61dd8c10cfb8525ba15eb6678ba7682eb3bb0e3eedfcb57cbe33d3d0d9a6c79b"
+    }
+  ],
+  "status": "NOT_RUN_DATA_GAP",
+  "time_semantics": "generated_at is the wall-clock run time, not a billing or report arrival time"
+}

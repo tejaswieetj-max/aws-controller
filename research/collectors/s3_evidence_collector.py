@@ -5,14 +5,14 @@ import argparse
 import hashlib
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import boto3
 
 
 def utc_now():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def sha256_s3_object(s3, bucket, key):
@@ -65,7 +65,7 @@ def main():
                     "region": args.region,
                     "observed_at_utc": observed_at,
                     "s3_last_modified_utc": obj["LastModified"].astimezone(
-                        timezone.utc
+                        UTC
                     ).isoformat(),
                     "size_bytes": obj["Size"],
                     "etag": obj.get("ETag"),

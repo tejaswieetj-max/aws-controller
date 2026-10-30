@@ -31,3 +31,12 @@ __pycache__/
 data/raw/
 data/interim/
 research/results/private/
+
+*.csv
+*.jsonl
+*.tar.gz
+*.parquet
+!tests/fixtures/**/*.csv
+research/data/raw/
+research/data/alibaba/
+.aider*

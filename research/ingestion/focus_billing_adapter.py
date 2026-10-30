@@ -32,8 +32,7 @@ Guarantees:
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict
-from datetime import timezone
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -186,7 +185,7 @@ def _grouping_key(row: dict) -> tuple:
 def _load_delivery(registry_entry: dict, s3_obs: dict[str, dict],
                    *, allow_unlisted: bool = False) -> DeliverySnapshot:
     """Load one delivery from the approved registry, attach S3 observation metadata."""
-    from .focus_loader import load_parquet, APPROVED_DELIVERIES
+    from .focus_loader import load_parquet
 
     rel = registry_entry["relative_path"]
     abs_path = Path(rel) if Path(rel).is_absolute() else (_REPO_ROOT / rel)
@@ -218,6 +217,11 @@ def _load_delivery(registry_entry: dict, s3_obs: dict[str, dict],
     missing_rid = sum(1 for r in rows_dict["ResourceId"] if r is None)
 
     notes = list(result.notes)
+    if missing_rid:
+        notes.append(
+            f"ResourceId is null in {missing_rid} row(s); no resource-level join "
+            "is possible for those rows."
+        )
     if first_observed is None:
         notes.append(
             "first_observed_utc is None: s3_evidence_collector observation not found "
@@ -290,8 +294,8 @@ def _diff_deliveries(earlier: DeliverySnapshot, later: DeliverySnapshot,
         "Grouping key: (ServiceName, ChargeCategory, ChargePeriodStart[:10], ResourceId).",
         "This is a descriptive comparison only. Groups are not billing identity keys.",
         "A group appearing in a later delivery does not prove a billing revision.",
-        "A group with changed row count does not prove a billing revision without a "
-        "verified stable row-level key.",
+        ("A group with changed row count does not prove a billing revision without a "
+        "verified stable row-level key."),
     ]
 
     return SnapshotDiff(
@@ -359,22 +363,22 @@ def build_feasibility_result(*, skip_diff: bool = False,
     )
 
     blocked = [
-        "evaluate.py empirical analysis: no FINAL-settled reservations with "
-        "price_snapshot_id and billing_audit to join",
+        ("evaluate.py empirical analysis: no FINAL-settled reservations with "
+        "price_snapshot_id and billing_audit to join"),
         "billing revision detection: no verified row-level unique key (InvoiceId fully null)",
-        "billing arrival delay measurement: no arrival timestamp in FOCUS 1.2 schema; "
-        "first_observed_utc records collector observation, not billing record availability",
+        ("billing arrival delay measurement: no arrival timestamp in FOCUS 1.2 schema; "
+        "first_observed_utc records collector observation, not billing record availability"),
         "per-request cost attribution: Tags fully empty, no reservation-id tag active",
     ]
 
     notes = [
         "All FOCUS rows are unmatched because no CALIBUR admission records exist.",
         "Unmatched rows are retained with explicit reason; they are not discarded.",
-        "first_observed_utc is the s3_evidence_collector observation timestamp, "
-        "not the time a billing record first became available to CALIBUR.",
+        ("first_observed_utc is the s3_evidence_collector observation timestamp, "
+        "not the time a billing record first became available to CALIBUR."),
         "S3 LastModified is recorded separately and must not be used as arrival time.",
-        "To enable the empirical evaluate.py run: export DynamoDB reservation and "
-        "billing_audit records after at least one FINAL-settled CALIBUR admission.",
+        ("To enable the empirical evaluate.py run: export DynamoDB reservation and "
+        "billing_audit records after at least one FINAL-settled CALIBUR admission."),
     ]
 
     return FeasibilityResult(
